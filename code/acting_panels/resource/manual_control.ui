@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+    <class>manual_control</class>
+    <widget class="QWidget" name="main_panel">
+        <widget class="QWidget" name="layoutWidget">
+            <property name="contentsMargins">
+                <set>10,10,10,10</set>
+            </property>
+            <layout class="QGridLayout" name="grid_layout">
+                <property name="rowStretch">
+                    <set>60, 4</set>
+                </property>
+                <property name="rowStretch">
+                    <set>1, 1</set>
+                </property>
+                <property name="columnStretch">
+                    <set>60, 10</set>
+                </property>
+
+
+                <!-- First ros - select mode-->
+
+                <item row="1" column="3" colspan="2">
+                    <widget class="QLabel">
+                        <property name="text">
+                            <string>Activate Override:</string>
+                        </property>
+                        <property name="styleSheet">
+                            <string>font-weight: bold</string> <!-- ; color: red-->
+                        </property>
+                    </widget>
+                </item>
+                <item row="1" column="5">
+                    <widget class="QPushButton" name="btn_set_override">
+                        <property name="icon">
+                            <iconset theme="view-refresh"></iconset>
+                        </property>
+                        <property name="text">
+                            <string> Set/Unset</string>
+                        </property>
+                    </widget>
+                </item>
+
+
+                <item row="1" column="7">
+                    <widget class="QLabel" name="override_label">
+                        <property name="text">
+                            <string>Override is OFF</string>
+                        </property>
+                        <property name="toolTip">
+                            <string>Shows if override is currently avtive.</string>
+                        </property>
+                    </widget>
+                </item>
+
+                <!-- Second Row  - Steering button-->
+                <item row="40" column="0" colspan="2">
+                    <widget class="QPushButton" name="btn_left">
+                        <property name="icon">
+                            <iconset theme="media-playback-start"></iconset>
+                        </property>
+                        <property name="text">
+                            <string>Left</string>
+                        </property>
+                    </widget>
+                </item>
+                <item row="40" column="2" colspan="2">
+                    <widget class="QPushButton" name="btn_center">
+                        <property name="icon">
+                            <iconset theme="media-playback-stop"></iconset>
+                        </property>
+                        <property name="text">
+                            <string> Center</string>
+                        </property>
+                    </widget>
+                </item>
+
+                <item row="40" column="4" colspan="2">
+                    <widget class="QPushButton" name="btn_right">
+                        <property name="icon">
+                            <iconset theme="emblem-symbolic-link"></iconset>
+                        </property>
+                        <property name="text">
+                            <string> Right</string>
+                        </property>
+                    </widget>
+                </item>
+
+                <item row="40" column="6" colspan="2">
+                    <widget class="QLabel" name="steering_label">
+                        <property name="text">
+                            <string>0.00</string>
+                        </property>
+                    </widget>
+                </item>
+
+
+                <!-- Third Row - Throttle button -->
+                <item row="41" column="0" colspan="2">
+                    <widget class="QPushButton" name="btn_reverse">
+                        <property name="icon">
+                            <iconset theme="media-playback-start"></iconset>
+                        </property>
+                        <property name="text">
+                            <string>Reverse</string>
+                        </property>
+                    </widget>
+                </item>
+                <item row="41" column="2" colspan="2">
+                    <widget class="QPushButton" name="btn_stop">
+                        <property name="icon">
+                            <iconset theme="media-playback-stop"></iconset>
+                        </property>
+                        <property name="text">
+                            <string> Stop</string>
+                        </property>
+                    </widget>
+                </item>
+
+                <item row="41" column="4" colspan="2">
+                    <widget class="QPushButton" name="btn_forward">
+                        <property name="icon">
+                            <iconset theme="emblem-symbolic-link"></iconset>
+                        </property>
+                        <property name="text">
+                            <string> Forward</string>
+                        </property>
+                    </widget>
+                </item>
+
+                <item row="41" column="6" colspan="2">
+                    <widget class="QLabel" name="throttle_label">
+                        <property name="text">
+                            <string>0.00</string>
+                        </property>
+                    </widget>
+                </item>
+
+            </layout>
+        </widget>
+    </widget>
+    <resources />
+    <connections />
+</ui>

@@ -115,6 +115,15 @@ class VehicleController(CompatibleNode):
             qos_profile=1,
         )
 
+        self.switch_control: Subscriber = self.new_subscription(
+            Bool,
+            f"/paf/{self.role_name}/switch_manual_override",
+            self._switch_manual_override,
+            qos_profile=1,
+        )
+
+        self.__manual_override: bool = False
+
         self.__reverse: bool = False
         self.__emergency: bool = False
         self.__velocity: float = 0.0
@@ -139,6 +148,9 @@ class VehicleController(CompatibleNode):
             :param timer_event: Timer event from ROS
             :return:
             """
+            if self.__manual_override:
+                return
+
             if self.__emergency:
                 # emergency is already handled in  __emergency_brake()
                 self.__emergency_brake(True)
@@ -170,6 +182,9 @@ class VehicleController(CompatibleNode):
 
         self.new_timer(self.control_loop_rate, loop)
         self.spin()
+
+    def _switch_manual_override(self, msg: Bool):
+        self.__manual_override = msg.data
 
     def __set_curr_behavior(self, data: String) -> None:
         """

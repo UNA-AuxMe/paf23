@@ -1,0 +1,7 @@
+<library path="lib/libacting_panels">
+  <class type="manual_control::manualControl" base_class_type="rviz::Panel">
+    <description>
+      A Panel to manually control the CAR in Carla.
+    </description>
+  </class>
+</library>
