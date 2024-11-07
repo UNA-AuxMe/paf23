@@ -31,7 +31,7 @@ class VehicleController(CompatibleNode):
         # Publisher for Carla Vehicle Control Commands
         self.control_publisher: Publisher = self.new_publisher(
             CarlaEgoVehicleControl,
-            f"/carla/{self.role_name}/vehicle_control_cmd",
+            f"/paf/{self.role_name}/vehicle_control_cmd",
             qos_profile=10,
         )
 
