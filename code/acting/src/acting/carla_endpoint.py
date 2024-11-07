@@ -79,23 +79,8 @@ class CarlaEndpoint(CompatibleNode):
         self.spin()
 
     def __publish_vehicle_control_commands(self, msg: Clock) -> None:
-        """
-        This setup might be confusing a bit at first therefore an explanation:
-
-        We are reacting on the clock provided by carla which seems to be most
-        reliable source for ticking in the expected rate.
-
-        However there is a floating point arithmetics bug
-        in roscomp.ros_timestamp() method.
-        For example 42.00__00626 will be converted to 42.626 instead of 42.0
-
-        Because of this we are doing our own conversion here.
-        """
-        time_seconds = self.get_time()
-        nsecs = round(time_seconds - int(time_seconds), 2)
-
-        self.__carla_command_out.header.stamp.secs = int(time_seconds)
-        self.__carla_command_out.header.stamp.nsecs = int(nsecs * 1000000000)
+        self.__carla_command_out.header.stamp.secs = msg.clock.secs
+        self.__carla_command_out.header.stamp.nsecs = msg.clock.nsecs
         self.__carla_command_out.header.seq += 1
         self.control_publisher.publish(self.__carla_command_out)
 
