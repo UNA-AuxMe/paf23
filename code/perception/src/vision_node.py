@@ -225,7 +225,7 @@ class VisionNode(CompatibleNode):
         calculated visualization according to the correct camera angle
 
         Args:
-            image (image msg): Image from camera scubscription
+            image (image msg): Image from camera scubscription, should be rgb
         """
 
         # free up cuda memory
@@ -239,7 +239,7 @@ class VisionNode(CompatibleNode):
             vision_result = self.predict_ultralytics(image)
 
         # publish vision result to rviz
-        img_msg = self.bridge.cv2_to_imgmsg(vision_result, encoding="rgb8")
+        img_msg = self.bridge.cv2_to_imgmsg(vision_result, encoding="bgr8")
         img_msg.header = image.header
 
         # publish img to corresponding angle topic
@@ -297,14 +297,14 @@ class VisionNode(CompatibleNode):
         cv_image = self.bridge.imgmsg_to_cv2(
             img_msg=image, desired_encoding="passthrough"
         )
-        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
+        cv_image_bgr = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
         preprocess = t.Compose(
             [
                 t.ToTensor(),
                 t.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ]
         )
-        input_image = preprocess(cv_image).unsqueeze(dim=0)
+        input_image = preprocess(cv_image_bgr).unsqueeze(dim=0)
 
         # get prediction
         input_image = input_image.to(self.device)
@@ -351,6 +351,7 @@ class VisionNode(CompatibleNode):
         c_labels = []
 
         boxes = output[0].boxes
+        masks = output[0].masks.data
         for box in boxes:
             cls = box.cls.item()  # class index of object
             pixels = box.xyxy[0]  # upper left and lower right pixel coords
@@ -437,7 +438,7 @@ class VisionNode(CompatibleNode):
 
         # draw bounding boxes and distance values on image
         c_boxes = torch.stack(c_boxes)
-        box = draw_bounding_boxes(
+        box_image = draw_bounding_boxes(
             image_np_with_detections,
             c_boxes,
             c_labels,
@@ -445,7 +446,22 @@ class VisionNode(CompatibleNode):
             width=3,
             font_size=12,
         )
-        np_box_img = np.transpose(box.detach().numpy(), (1, 2, 0))
+        scaled_masks = np.zeros((cv_image.shape[1], cv_image.shape[0]))
+        for i, mask in enumerate(masks.cpu().numpy()):
+            np.vstack(
+                (
+                    scaled_masks,
+                    cv2.resize(
+                        mask,
+                        (cv_image.shape[1], cv_image.shape[0]),
+                        interpolation=cv2.INTER_LINEAR,
+                    ),
+                )
+            )
+        mask_image = draw_segmentation_masks(
+            box_image, torch.from_numpy(scaled_masks > 0), alpha=0.6
+        )
+        np_box_img = np.transpose(mask_image.detach().numpy(), (1, 2, 0))
         box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
         return box_img
 
@@ -567,9 +583,7 @@ class VisionNode(CompatibleNode):
             font_size=24,
         )
 
-        np_box_img = np.transpose(box.detach().numpy(), (1, 2, 0))
-        box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
-        return box_img
+        return np.transpose(box.detach().numpy(), (1, 2, 0))
 
     def run(self):
         self.spin()

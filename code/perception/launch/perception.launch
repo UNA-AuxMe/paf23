@@ -58,10 +58,10 @@
 
       Image-Segmentation:
       - deeplabv3_resnet101
-      - yolov8x-seg 
+      - yolov8x-seg
       -->
 
-    <param name="model" value="rtdetr-l" />
+    <param name="model" value="yolov8x-seg" />
   </node>
 
   <node pkg="perception" type="traffic_light_node.py" name="TrafficLightNode" output="screen">
