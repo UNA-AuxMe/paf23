@@ -25,6 +25,59 @@ from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
 import asyncio
 import rospy
 
+colormap = [
+    (166, 206, 227),
+    (31, 120, 180),
+    (178, 223, 138),
+    (51, 160, 44),
+    (251, 154, 153),
+    (227, 26, 28),
+    (253, 191, 111),
+    (255, 127, 0),
+    (202, 178, 214),
+    (106, 61, 154),
+    (255, 255, 153),
+    (177, 89, 40),
+    (141, 211, 199),
+    (255, 255, 179),
+    (190, 186, 218),
+    (251, 128, 114),
+    (128, 177, 211),
+    (253, 180, 98),
+    (179, 222, 105),
+    (252, 205, 229),
+    (217, 217, 217),
+    (188, 128, 189),
+    (204, 235, 197),
+    (255, 237, 111),
+    (127, 205, 187),
+    (65, 182, 196),
+    (29, 145, 192),
+    (34, 94, 168),
+    (12, 44, 132),
+    (127, 39, 4),
+    (179, 88, 6),
+    (224, 130, 20),
+    (253, 141, 60),
+    (254, 178, 76),
+    (254, 217, 118),
+    (255, 237, 160),
+    (255, 255, 204),
+    (199, 233, 180),
+    (127, 205, 187),
+    (65, 182, 196),
+    (29, 145, 192),
+    (34, 94, 168),
+    (12, 44, 132),
+    (120, 198, 121),
+    (49, 163, 84),
+    (0, 104, 55),
+    (197, 27, 125),
+    (222, 119, 174),
+    (241, 182, 218),
+    (253, 224, 239),
+]
+
 
 class VisionNode(CompatibleNode):
     """
@@ -352,6 +405,7 @@ class VisionNode(CompatibleNode):
 
         boxes = output[0].boxes
         masks = output[0].masks.data
+        c_colors = []
         for box in boxes:
             cls = box.cls.item()  # class index of object
             pixels = box.xyxy[0]  # upper left and lower right pixel coords
@@ -424,6 +478,7 @@ class VisionNode(CompatibleNode):
                     f"({round(float(obj_dist_min_x[0]), 2)},"
                     f"{round(float(obj_dist_min_abs_y[1]), 2)})"
                 )
+                c_colors.append(colormap[int(cls)])
 
         # publish list of distances of objects for planning
         self.distance_publisher.publish(Float32MultiArray(data=distance_output))
@@ -446,20 +501,18 @@ class VisionNode(CompatibleNode):
             width=3,
             font_size=12,
         )
-        scaled_masks = np.zeros((cv_image.shape[1], cv_image.shape[0]))
+        scaled_masks_list = []
         for i, mask in enumerate(masks.cpu().numpy()):
-            np.vstack(
-                (
-                    scaled_masks,
-                    cv2.resize(
-                        mask,
-                        (cv_image.shape[1], cv_image.shape[0]),
-                        interpolation=cv2.INTER_LINEAR,
-                    ),
-                )
+            scaled_masks_list.append(
+                cv2.resize(
+                    mask,
+                    (cv_image.shape[1], cv_image.shape[0]),
+                    interpolation=cv2.INTER_LINEAR,
+                ),
             )
+        scaled_masks = np.array(scaled_masks_list)
         mask_image = draw_segmentation_masks(
-            box_image, torch.from_numpy(scaled_masks > 0), alpha=0.6
+            box_image, torch.from_numpy(scaled_masks > 0), alpha=0.6, colors=c_colors
         )
         np_box_img = np.transpose(mask_image.detach().numpy(), (1, 2, 0))
         box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
