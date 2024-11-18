@@ -24,6 +24,9 @@ import numpy as np
 from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
 import asyncio
 import rospy
+from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Point
+import math
 
 # Carla-Farben basierend auf deiner Definition
 carla_colors = [
@@ -241,6 +244,19 @@ class VisionNode(CompatibleNode):
         # ultralytics setup
         if self.framework == "ultralytics":
             self.model = self.model(self.weights)
+        self.marker_publisher = rospy.Publisher(
+            "/visualization_marker_array", MarkerArray, queue_size=10
+        )
+
+        image_size_x = 1280
+        image_size_y = 720
+        fov = 100
+
+        self.fx = self.fy = image_size_x / (2 * math.tan(math.radians(fov) / 2))
+        self.cx = image_size_x / 2
+        self.cy = image_size_y / 2
+        self.previous_ids = set()
+        self.lidar_max_range = 50
 
     def setup_camera_subscriptions(self, side):
         """
@@ -459,63 +475,110 @@ class VisionNode(CompatibleNode):
 
         boxes = output[0].boxes
         masks = output[0].masks.data
+        markers = MarkerArray()  # Array of markers for visualization in ROS
+        current_ids = set()
         c_colors = []
         for box in boxes:
-            cls = box.cls.item()  # class index of object
-            pixels = box.xyxy[0]  # upper left and lower right pixel coords
+            cls = box.cls.item()  # Klassenindex des Objekts
+            pixels = box.xyxy[0]  # obere linke und untere rechte Pixelkoordinaten
 
-            # only run distance calc when dist_array is available
-            # this if is needed because the lidar starts
-            # publishing with a delay
+            x_min, x_max = int(pixels[0]), int(pixels[2])
+            y_min, y_max = int(pixels[1]), int(pixels[3])
+
+            track_id = (
+                box.track_id if hasattr(box, "track_id") else None
+            )  # Tracking-ID des Objekts
+
+            # Wenn keine Tracking-ID vorhanden ist, dynamische Fallback-ID verwenden
+            marker_id = track_id if track_id is not None else hash(f"{cls}_{pixels}")
+            # Begrenzen der ID auf int32-Bereich
+            marker_id = int(
+                marker_id % 2147483647
+            )  # Sicherstellen, dass ID im Bereich ist
+            if marker_id < 0:
+                marker_id += 2147483647  # Falls negativ, positiv machen
+            current_ids.add(marker_id)
             if self.dist_arrays is not None:
 
-                # crop bounding box area out of depth image
                 distances = np.asarray(
-                    self.dist_arrays[
-                        int(pixels[1]) : int(pixels[3]) : 1,
-                        int(pixels[0]) : int(pixels[2]) : 1,
-                        ::,
-                    ]
-                )
+                    self.dist_arrays[y_min:y_max, x_min:x_max, :]
+                ).copy()  # Kopie erstellen
+                distances[distances == 0] = np.inf  # Nullwerte durch np.inf ersetzen
 
-                # set all 0 (black) values to np.inf (necessary if
-                # you want to search for minimum)
-                # these are all pixels where there is no
-                # corresponding lidar point in the depth image
-                condition = distances[:, :, 0] != 0
+                # Anzahl gültiger Punkte (finite Werte)
+                valid_points = np.isfinite(distances).sum()
+
+                if valid_points == 0:
+                    rospy.logwarn(
+                        f"Keine gültigen Tiefenwerte für Bounding-Box {cls}. Übers"
+                    )
+                    continue
+
+                # Wenige gültige Punkte - Fallback verwenden
+                if valid_points < 5:  # Beispielgrenze: weniger als 5 gültige Punkte
+                    rospy.loginfo(
+                        f"Wenige gültige Tiefenwerte für Bounding-Box {cls}. Setze Sta"
+                    )
+                    distances.fill(
+                        self.lidar_max_range
+                    )  # Fallback auf maximale Reichweite
+
+                # Berechnung nur für gültige Tiefenpunkte
+                condition = np.isfinite(distances[:, :, 0])  # Gültige Punkte prüfen
                 non_zero_filter = distances[condition]
-                distances_copy = distances.copy()
-                distances_copy[distances_copy == 0] = np.inf
 
-                # only proceed if there is more than one lidar
-                # point in the bounding box
                 if len(non_zero_filter) > 0:
+                    obj_dist_min_x = self.min_x(
+                        dist_array=distances
+                    )  # Verwende distances direkt
+                    obj_dist_min_abs_y = self.min_abs_y(
+                        dist_array=distances
+                    )  # Verwende distances direkt
 
-                    """
-                    !Watch out:
-                    The calculation of min x and min abs y is currently
-                    only for center angle
-                    For back, left and right the values are different in the
-                    coordinate system of the lidar.
-                    (Example: the closedt distance on the back view should the
-                    max x since the back view is on the -x axis)
-                    """
-
-                    # copy actual lidar points
-                    obj_dist_min_x = self.min_x(dist_array=distances_copy)
-                    obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
-
-                    # absolut distance to object for visualization
                     abs_distance = np.sqrt(
                         obj_dist_min_x[0] ** 2
                         + obj_dist_min_x[1] ** 2
                         + obj_dist_min_x[2] ** 2
                     )
 
-                    # append class index, min x and min abs y to output array
-                    distance_output.append(float(cls))
-                    distance_output.append(float(obj_dist_min_x[0]))
-                    distance_output.append(float(obj_dist_min_abs_y[1]))
+                    # Berechnung der Weltkoordinaten
+                    u, v = (
+                        int(pixels[0] + pixels[2]) / 2,
+                        int(pixels[1] + pixels[3]) / 2,
+                    )
+                    D = abs_distance
+
+                    X = (u - self.cx) * D / self.fx
+                    Y = (v - self.cy) * D / self.fy
+                    Z = D
+
+                    # Erstelle Marker
+                    marker = Marker()
+                    marker.header.frame_id = "global"
+                    marker.header.stamp = rospy.Time.now()
+                    marker.ns = "object_markers"
+                    marker.id = marker_id
+                    marker.type = Marker.SPHERE
+                    marker.action = Marker.ADD
+                    marker.pose.position = Point(X, Y, Z)
+                    marker.scale.x = 0.10
+                    marker.scale.y = 0.10
+                    marker.scale.z = 0.10
+                    marker.pose.orientation.x = 0.0
+                    marker.pose.orientation.y = 0.0
+                    marker.pose.orientation.z = 0.0
+                    marker.pose.orientation.w = (
+                        1.0  # W ist 1 für eine Identitätsrotation
+                    )
+
+                    # Farben setzen
+                    color = get_carla_color(int(cls))
+                    marker.color.r = color[0] / 255.0
+                    marker.color.g = color[1] / 255.0
+                    marker.color.b = color[2] / 255.0
+                    marker.color.a = 1.0  # Volle Deckkraft
+
+                    markers.markers.append(marker)
 
                 else:
                     # fallback values for bounding box if
@@ -536,7 +599,7 @@ class VisionNode(CompatibleNode):
 
         # publish list of distances of objects for planning
         self.distance_publisher.publish(Float32MultiArray(data=distance_output))
-
+        self.marker_publisher.publish(markers)
         # transform image
         transposed_image = np.transpose(cv_image, (2, 0, 1))
         image_np_with_detections = torch.tensor(transposed_image, dtype=torch.uint8)
@@ -570,6 +633,18 @@ class VisionNode(CompatibleNode):
         )
         np_box_img = np.transpose(mask_image.detach().numpy(), (1, 2, 0))
         box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
+
+        # Entfernen Sie Marker, die in dieser Iteration nicht mehr existieren
+        for old_marker in self.previous_ids - current_ids:
+            delete_marker = Marker()
+            delete_marker.header.frame_id = "global"
+            delete_marker.header.stamp = rospy.Time.now()
+            delete_marker.ns = "object_markers"
+            delete_marker.id = old_marker
+            delete_marker.action = Marker.DELETE
+            markers.markers.append(delete_marker)
+        self.previous_ids = current_ids
+
         return box_img
 
     def min_x(self, dist_array):
