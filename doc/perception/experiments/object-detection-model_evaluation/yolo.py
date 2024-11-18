@@ -25,6 +25,7 @@ ALL_MODELS = {
     "yolov8x-seg": YOLO,
     "sam-l": SAM,
     "FastSAM-x": FastSAM,
+    "yolo11n-seg": YOLO,
 }
 
 

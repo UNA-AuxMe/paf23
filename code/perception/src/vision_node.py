@@ -25,58 +25,111 @@ from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
 import asyncio
 import rospy
 
-colormap = [
-    (166, 206, 227),
-    (31, 120, 180),
-    (178, 223, 138),
-    (51, 160, 44),
-    (251, 154, 153),
-    (227, 26, 28),
-    (253, 191, 111),
-    (255, 127, 0),
-    (202, 178, 214),
-    (106, 61, 154),
-    (255, 255, 153),
-    (177, 89, 40),
-    (141, 211, 199),
-    (255, 255, 179),
-    (190, 186, 218),
-    (251, 128, 114),
-    (128, 177, 211),
-    (253, 180, 98),
-    (179, 222, 105),
-    (252, 205, 229),
-    (217, 217, 217),
-    (188, 128, 189),
-    (204, 235, 197),
-    (255, 237, 111),
-    (127, 205, 187),
-    (65, 182, 196),
-    (29, 145, 192),
-    (34, 94, 168),
-    (12, 44, 132),
-    (127, 39, 4),
-    (179, 88, 6),
-    (224, 130, 20),
-    (253, 141, 60),
-    (254, 178, 76),
-    (254, 217, 118),
-    (255, 237, 160),
-    (255, 255, 204),
-    (199, 233, 180),
-    (127, 205, 187),
-    (65, 182, 196),
-    (29, 145, 192),
-    (34, 94, 168),
-    (12, 44, 132),
-    (120, 198, 121),
-    (49, 163, 84),
-    (0, 104, 55),
-    (197, 27, 125),
-    (222, 119, 174),
-    (241, 182, 218),
-    (253, 224, 239),
+# Carla-Farben basierend auf deiner Definition
+carla_colors = [
+    [0, 0, 0],  # 0: None
+    [70, 70, 70],  # 1: Buildings
+    [190, 153, 153],  # 2: Fences
+    [72, 0, 90],  # 3: Other
+    [220, 20, 60],  # 4: Pedestrians
+    [153, 153, 153],  # 5: Poles
+    [157, 234, 50],  # 6: RoadLines
+    [128, 64, 128],  # 7: Roads
+    [244, 35, 232],  # 8: Sidewalks
+    [107, 142, 35],  # 9: Vegetation
+    [0, 0, 255],  # 10: Vehicles
+    [102, 102, 156],  # 11: Walls
+    [220, 220, 0],  # 12: TrafficSigns
 ]
+
+# COCO-Klassen → Carla-Klassen Mapping (entsprechend deiner Anfrage)
+coco_to_carla = [
+    0,  # 0: N/A -> None
+    4,  # 1: Person -> Pedestrians
+    10,  # 2: Bicycle -> Vehicles
+    10,  # 3: Car -> Vehicles
+    10,  # 4: Motorbike -> Vehicles
+    1,  # 5: Airplane -> Buildings
+    10,  # 6: Bus -> Vehicles
+    1,  # 7: Train -> Buildings
+    10,  # 8: Truck -> Vehicles
+    1,  # 9: Boat -> Buildings
+    12,  # 10: Traffic Light -> TrafficSigns
+    11,  # 11: Fire Hydrant -> Walls
+    0,  # 12: N/A -> None
+    0,  # 13: N/A -> None
+    0,  # 14: N/A -> None
+    5,  # 15: Parking Meter -> Poles
+    3,  # 16: Bench -> Other
+    9,  # 17: Bird -> Vegetation
+    9,  # 18: Cat -> Vegetation
+    9,  # 19: Dog -> Vegetation
+    9,  # 20: Horse -> Vegetation
+    9,  # 21: Sheep -> Vegetation
+    9,  # 22: Cow -> Vegetation
+    9,  # 23: Elephant -> Vegetation
+    9,  # 24: Bear -> Vegetation
+    9,  # 25: Zebra -> Vegetation
+    9,  # 26: Giraffe -> Vegetation
+    0,  # 27: N/A -> None
+    3,  # 28: Backpack -> Other
+    3,  # 29: Umbrella -> Other
+    3,  # 30: Handbag -> Other
+    3,  # 31: Tie -> Other
+    3,  # 32: Suitcase -> Other
+    3,  # 33: Frisbee -> Other
+    3,  # 34: Skis -> Other
+    3,  # 35: Snowboard -> Other
+    3,  # 36: Sports Ball -> Other
+    3,  # 37: Kite -> Other
+    3,  # 38: Baseball Bat -> Other
+    3,  # 39: Baseball Glove -> Other
+    3,  # 40: Skateboard -> Other
+    3,  # 41: Surfboard -> Other
+    3,  # 42: Tennis Racket -> Other
+    3,  # 43: Bottle -> Other
+    3,  # 44: Wine Glass -> Other
+    3,  # 45: Cup -> Other
+    3,  # 46: Fork -> Other
+    3,  # 47: Knife -> Other
+    3,  # 48: Spoon -> Other
+    3,  # 49: Bowl -> Other
+    9,  # 50: Banana -> Vegetation
+    9,  # 51: Apple -> Vegetation
+    3,  # 52: Sandwich -> Other
+    9,  # 53: Orange -> Vegetation
+    9,  # 54: Broccoli -> Vegetation
+    9,  # 55: Carrot -> Vegetation
+    3,  # 56: Hot Dog -> Other
+    3,  # 57: Pizza -> Other
+    3,  # 58: Donut -> Other
+    3,  # 59: Cake -> Other
+    3,  # 60: Chair -> Other
+    1,  # 61: Couch -> Buildings
+    1,  # 62: Potted Plant -> Vegetation
+    1,  # 63: Bed -> Buildings
+    1,  # 64: Dining Table -> Buildings
+    1,  # 65: Toilet -> Buildings
+    0,  # 66: N/A -> None
+    0,  # 67: N/A -> None
+    0,  # 68: N/A -> None
+    0,  # 69: N/A -> None
+    1,  # 70: TV -> Buildings
+    3,  # 71: Laptop -> Other
+    3,  # 72: Mouse -> Other
+    3,  # 73: Remote -> Other
+    3,  # 74: Keyboard -> Other
+    3,  # 75: Cell Phone -> Other
+    1,  # 76: Microwave -> Buildings
+    1,  # 77: Oven -> Buildings
+    1,  # 78: Toaster -> Buildings
+    1,  # 79: Sink -> Buildings
+]
+
+
+def get_carla_color(coco_class):
+    carla_class = coco_to_carla[coco_class]
+    return carla_colors[carla_class]
 
 
 class VisionNode(CompatibleNode):
@@ -128,6 +181,7 @@ class VisionNode(CompatibleNode):
             "rtdetr-l": (RTDETR, "rtdetr-l.pt", "detection", "ultralytics"),
             "rtdetr-x": (RTDETR, "rtdetr-x.pt", "detection", "ultralytics"),
             "yolov8x-seg": (YOLO, "yolov8x-seg.pt", "segmentation", "ultralytics"),
+            "yolo11n-seg": (YOLO, "yolo11n-seg.pt", "segmentation", "ultralytics"),
             "sam_l": (SAM, "sam_l.pt", "detection", "ultralytics"),
             "FastSAM-x": (FastSAM, "FastSAM-x.pt", "detection", "ultralytics"),
         }
@@ -478,7 +532,7 @@ class VisionNode(CompatibleNode):
                     f"({round(float(obj_dist_min_x[0]), 2)},"
                     f"{round(float(obj_dist_min_abs_y[1]), 2)})"
                 )
-                c_colors.append(colormap[int(cls)])
+                c_colors.append(get_carla_color(int(cls)))
 
         # publish list of distances of objects for planning
         self.distance_publisher.publish(Float32MultiArray(data=distance_output))
