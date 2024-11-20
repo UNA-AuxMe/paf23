@@ -478,19 +478,10 @@ class VisionNode(CompatibleNode):
             cls = box.cls.item()  # Klassenindex des Objekts
             pixels = box.xyxy[0]  # obere linke und untere rechte Pixelkoordinaten
 
-            track_id = (
-                box.track_id if hasattr(box, "track_id") else None
-            )  # Tracking-ID des Objekts
+            # track_id = (
+            #    box.track_id if hasattr(box, "track_id") else None
+            # )  # Tracking-ID could be used
 
-            # Wenn keine Tracking-ID vorhanden ist, dynamische Fallback-ID verwenden
-            marker_id = track_id if track_id is not None else hash(f"{cls}_{pixels}")
-            # Begrenzen der ID auf int32-Bereich
-            marker_id = int(
-                marker_id % 2147483647
-            )  # Sicherstellen, dass ID im Bereich ist
-            if marker_id < 0:
-                marker_id += 2147483647  # Falls negativ, positiv machen
-            current_ids.add(marker_id)
             if self.dist_arrays is not None:
 
                 distances = np.asarray(
@@ -500,14 +491,19 @@ class VisionNode(CompatibleNode):
                         ::,
                     ]
                 )
+
+                # set all 0 (black) values to np.inf (necessary if
+                # you want to search for minimum)
+                # these are all pixels where there is no
+                # corresponding lidar point in the depth image
                 condition = distances[:, :, 0] != 0
                 non_zero_filter = distances[condition]
                 distances_copy = distances.copy()
                 distances_copy[distances_copy == 0] = np.inf
+
+                # only proceed if there is more than one lidar
+                # point in the bounding box
                 if len(non_zero_filter) > 0:
-                    # copy actual lidar points
-                    obj_dist_min_x = self.min_x(dist_array=distances_copy)
-                    obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
                     """
                     !Watch out:
                     The calculation of min x and min abs y is currently
@@ -518,12 +514,17 @@ class VisionNode(CompatibleNode):
                     max x since the back view is on the -x axis)
                     """
 
+                    # copy actual lidar points
+                    obj_dist_min_x = self.min_x(dist_array=distances_copy)
+                    obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
                     # absolut distance to object for visualization
                     abs_distance = np.sqrt(
                         obj_dist_min_x[0] ** 2
                         + obj_dist_min_x[1] ** 2
                         + obj_dist_min_x[2] ** 2
                     )
+
+                    # append class index, min x and min abs y to output array
                     distance_output.append(float(cls))
                     distance_output.append(float(obj_dist_min_x[0]))
                     distance_output.append(float(obj_dist_min_abs_y[1]))
