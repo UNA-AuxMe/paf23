@@ -484,6 +484,7 @@ class VisionNode(CompatibleNode):
 
             if self.dist_arrays is not None:
 
+                # crop bounding box area out of depth image
                 distances = np.asarray(
                     self.dist_arrays[
                         int(pixels[1]) : int(pixels[3]) : 1,
