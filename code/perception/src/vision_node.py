@@ -135,11 +135,6 @@ def get_carla_color(coco_class):
     return carla_colors[carla_class]
 
 
-def get_world_boxes(segmentation_masks, lidar_data):
-
-    pass
-
-
 class VisionNode(CompatibleNode):
     """
     VisionNode:
@@ -252,7 +247,6 @@ class VisionNode(CompatibleNode):
         self.marker_publisher = rospy.Publisher(
             "/visualization_marker_array", MarkerArray, queue_size=10
         )
-        self.previous_ids = set()
 
     def setup_camera_subscriptions(self, side):
         """
@@ -472,7 +466,7 @@ class VisionNode(CompatibleNode):
         boxes = output[0].boxes
         masks = output[0].masks.data
         markers = MarkerArray()  # Array of markers for visualization in ROS
-        current_ids = set()
+
         c_colors = []
         for box in boxes:
             cls = box.cls.item()  # Klassenindex des Objekts
@@ -570,6 +564,7 @@ class VisionNode(CompatibleNode):
         )
         scaled_masks_list = []
         for i, mask in enumerate(masks.cpu().numpy()):
+            # probably need to cut something off here
             scaled_masks_list.append(
                 cv2.resize(
                     mask,
@@ -583,19 +578,49 @@ class VisionNode(CompatibleNode):
         )
         np_box_img = np.transpose(mask_image.detach().numpy(), (1, 2, 0))
         box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
-
-        # Entfernen Sie Marker, die in dieser Iteration nicht mehr existieren
-        for old_marker in self.previous_ids - current_ids:
-            delete_marker = Marker()
-            delete_marker.header.frame_id = "global"
-            delete_marker.header.stamp = rospy.Time.now()
-            delete_marker.ns = "object_markers"
-            delete_marker.id = old_marker
-            delete_marker.action = Marker.DELETE
-            markers.markers.append(delete_marker)
-        self.previous_ids = current_ids
+        markers = self.get_markers(scaled_masks, self.dist_arrays)
 
         return box_img
+
+    def get_markers(self, scaled_masks, distance_array):
+        marker_array = MarkerArray()
+        for i, mask in enumerate(scaled_masks):
+            # mask has size 384, 640
+            marker = Marker()
+            marker.header.frame_id = "global"
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "segmentation"
+            marker.id = i
+            marker.type = Marker.SPHERE
+            marker.action = Marker.ADD
+            marker.scale.x = 0.5
+            marker.scale.y = 0.5
+            marker.scale.z = 0.5
+            marker.color.a = 1.0
+            marker.color.r = 1.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
+
+            # shape 255, 2
+            mask_indices = scaled_masks > 0
+            assert len(mask_indices) > 0
+            for point in mask_indices:
+                x, y = point
+                distance = distance_array[y, x]
+                if distance[0] != np.inf:
+
+                    point = Point()
+                    point.x = distance[0]
+                    point.y = distance[1]
+                    point.z = distance[2]
+                    marker.pose.position = point
+
+                marker_array.markers.append(marker)
+        return marker_array
 
     def min_x(self, dist_array):
         """
