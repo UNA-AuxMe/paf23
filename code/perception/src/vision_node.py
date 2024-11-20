@@ -482,69 +482,70 @@ class VisionNode(CompatibleNode):
             #    box.track_id if hasattr(box, "track_id") else None
             # )  # Tracking-ID could be used
 
-            if self.dist_arrays is not None:
+            if self.dist_arrays is None:
+                continue
 
-                # crop bounding box area out of depth image
-                distances = np.asarray(
-                    self.dist_arrays[
-                        int(pixels[1]) : int(pixels[3]) : 1,
-                        int(pixels[0]) : int(pixels[2]) : 1,
-                        ::,
-                    ]
+            # crop bounding box area out of depth image
+            distances = np.asarray(
+                self.dist_arrays[
+                    int(pixels[1]) : int(pixels[3]) : 1,
+                    int(pixels[0]) : int(pixels[2]) : 1,
+                    ::,
+                ]
+            )
+
+            # set all 0 (black) values to np.inf (necessary if
+            # you want to search for minimum)
+            # these are all pixels where there is no
+            # corresponding lidar point in the depth image
+            condition = distances[:, :, 0] != 0
+            non_zero_filter = distances[condition]
+            distances_copy = distances.copy()
+            distances_copy[distances_copy == 0] = np.inf
+
+            # only proceed if there is more than one lidar
+            # point in the bounding box
+            if len(non_zero_filter) > 0:
+                """
+                !Watch out:
+                The calculation of min x and min abs y is currently
+                only for center angle
+                For back, left and right the values are different in the
+                coordinate system of the lidar.
+                (Example: the closedt distance on the back view should the
+                max x since the back view is on the -x axis)
+                """
+
+                # copy actual lidar points
+                obj_dist_min_x = self.min_x(dist_array=distances_copy)
+                obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
+                # absolut distance to object for visualization
+                abs_distance = np.sqrt(
+                    obj_dist_min_x[0] ** 2
+                    + obj_dist_min_x[1] ** 2
+                    + obj_dist_min_x[2] ** 2
                 )
 
-                # set all 0 (black) values to np.inf (necessary if
-                # you want to search for minimum)
-                # these are all pixels where there is no
-                # corresponding lidar point in the depth image
-                condition = distances[:, :, 0] != 0
-                non_zero_filter = distances[condition]
-                distances_copy = distances.copy()
-                distances_copy[distances_copy == 0] = np.inf
+                # append class index, min x and min abs y to output array
+                distance_output.append(float(cls))
+                distance_output.append(float(obj_dist_min_x[0]))
+                distance_output.append(float(obj_dist_min_abs_y[1]))
+            else:
+                # fallback values for bounding box if
+                # no lidar points where found
+                obj_dist_min_x = (np.inf, np.inf, np.inf)
+                obj_dist_min_abs_y = (np.inf, np.inf, np.inf)
+                abs_distance = np.inf
 
-                # only proceed if there is more than one lidar
-                # point in the bounding box
-                if len(non_zero_filter) > 0:
-                    """
-                    !Watch out:
-                    The calculation of min x and min abs y is currently
-                    only for center angle
-                    For back, left and right the values are different in the
-                    coordinate system of the lidar.
-                    (Example: the closedt distance on the back view should the
-                    max x since the back view is on the -x axis)
-                    """
-
-                    # copy actual lidar points
-                    obj_dist_min_x = self.min_x(dist_array=distances_copy)
-                    obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
-                    # absolut distance to object for visualization
-                    abs_distance = np.sqrt(
-                        obj_dist_min_x[0] ** 2
-                        + obj_dist_min_x[1] ** 2
-                        + obj_dist_min_x[2] ** 2
-                    )
-
-                    # append class index, min x and min abs y to output array
-                    distance_output.append(float(cls))
-                    distance_output.append(float(obj_dist_min_x[0]))
-                    distance_output.append(float(obj_dist_min_abs_y[1]))
-                else:
-                    # fallback values for bounding box if
-                    # no lidar points where found
-                    obj_dist_min_x = (np.inf, np.inf, np.inf)
-                    obj_dist_min_abs_y = (np.inf, np.inf, np.inf)
-                    abs_distance = np.inf
-
-                # add values for visualization
-                c_boxes.append(torch.tensor(pixels))
-                c_labels.append(
-                    f"Class: {cls},"
-                    f"Meters: {round(abs_distance, 2)},"
-                    f"({round(float(obj_dist_min_x[0]), 2)},"
-                    f"{round(float(obj_dist_min_abs_y[1]), 2)})"
-                )
-                c_colors.append(get_carla_color(int(cls)))
+            # add values for visualization
+            c_boxes.append(torch.tensor(pixels))
+            c_labels.append(
+                f"Class: {cls},"
+                f"Meters: {round(abs_distance, 2)},"
+                f"({round(float(obj_dist_min_x[0]), 2)},"
+                f"{round(float(obj_dist_min_abs_y[1]), 2)})"
+            )
+            c_colors.append(get_carla_color(int(cls)))
 
         # publish list of distances of objects for planning
         self.distance_publisher.publish(Float32MultiArray(data=distance_output))
