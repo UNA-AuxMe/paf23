@@ -135,6 +135,11 @@ def get_carla_color(coco_class):
     return carla_colors[carla_class]
 
 
+def get_world_boxes(segmentation_masks, lidar_data):
+
+    pass
+
+
 class VisionNode(CompatibleNode):
     """
     VisionNode:
@@ -247,16 +252,7 @@ class VisionNode(CompatibleNode):
         self.marker_publisher = rospy.Publisher(
             "/visualization_marker_array", MarkerArray, queue_size=10
         )
-
-        image_size_x = 1280
-        image_size_y = 720
-        fov = 100
-
-        self.fx = self.fy = image_size_x / (2 * math.tan(math.radians(fov) / 2))
-        self.cx = image_size_x / 2
-        self.cy = image_size_y / 2
         self.previous_ids = set()
-        self.lidar_max_range = 50
 
     def setup_camera_subscriptions(self, side):
         """
@@ -482,9 +478,6 @@ class VisionNode(CompatibleNode):
             cls = box.cls.item()  # Klassenindex des Objekts
             pixels = box.xyxy[0]  # obere linke und untere rechte Pixelkoordinaten
 
-            x_min, x_max = int(pixels[0]), int(pixels[2])
-            y_min, y_max = int(pixels[1]), int(pixels[3])
-
             track_id = (
                 box.track_id if hasattr(box, "track_id") else None
             )  # Tracking-ID des Objekts
@@ -501,85 +494,39 @@ class VisionNode(CompatibleNode):
             if self.dist_arrays is not None:
 
                 distances = np.asarray(
-                    self.dist_arrays[y_min:y_max, x_min:x_max, :]
-                ).copy()  # Kopie erstellen
-                distances[distances == 0] = np.inf  # Nullwerte durch np.inf ersetzen
-
-                # Anzahl gültiger Punkte (finite Werte)
-                valid_points = np.isfinite(distances).sum()
-
-                if valid_points == 0:
-                    rospy.logwarn(
-                        f"Keine gültigen Tiefenwerte für Bounding-Box {cls}. Übers"
-                    )
-                    continue
-
-                # Wenige gültige Punkte - Fallback verwenden
-                if valid_points < 5:  # Beispielgrenze: weniger als 5 gültige Punkte
-                    rospy.loginfo(
-                        f"Wenige gültige Tiefenwerte für Bounding-Box {cls}. Setze Sta"
-                    )
-                    distances.fill(
-                        self.lidar_max_range
-                    )  # Fallback auf maximale Reichweite
-
-                # Berechnung nur für gültige Tiefenpunkte
-                condition = np.isfinite(distances[:, :, 0])  # Gültige Punkte prüfen
+                    self.dist_arrays[
+                        int(pixels[1]) : int(pixels[3]) : 1,
+                        int(pixels[0]) : int(pixels[2]) : 1,
+                        ::,
+                    ]
+                )
+                condition = distances[:, :, 0] != 0
                 non_zero_filter = distances[condition]
-
+                distances_copy = distances.copy()
+                distances_copy[distances_copy == 0] = np.inf
                 if len(non_zero_filter) > 0:
-                    obj_dist_min_x = self.min_x(
-                        dist_array=distances
-                    )  # Verwende distances direkt
-                    obj_dist_min_abs_y = self.min_abs_y(
-                        dist_array=distances
-                    )  # Verwende distances direkt
+                    # copy actual lidar points
+                    obj_dist_min_x = self.min_x(dist_array=distances_copy)
+                    obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
+                    """
+                    !Watch out:
+                    The calculation of min x and min abs y is currently
+                    only for center angle
+                    For back, left and right the values are different in the
+                    coordinate system of the lidar.
+                    (Example: the closedt distance on the back view should the
+                    max x since the back view is on the -x axis)
+                    """
 
+                    # absolut distance to object for visualization
                     abs_distance = np.sqrt(
                         obj_dist_min_x[0] ** 2
                         + obj_dist_min_x[1] ** 2
                         + obj_dist_min_x[2] ** 2
                     )
-
-                    # Berechnung der Weltkoordinaten
-                    u, v = (
-                        int(pixels[0] + pixels[2]) / 2,
-                        int(pixels[1] + pixels[3]) / 2,
-                    )
-                    D = abs_distance
-
-                    X = (u - self.cx) * D / self.fx
-                    Y = (v - self.cy) * D / self.fy
-                    Z = D
-
-                    # Erstelle Marker
-                    marker = Marker()
-                    marker.header.frame_id = "global"
-                    marker.header.stamp = rospy.Time.now()
-                    marker.ns = "object_markers"
-                    marker.id = marker_id
-                    marker.type = Marker.SPHERE
-                    marker.action = Marker.ADD
-                    marker.pose.position = Point(X, Y, Z)
-                    marker.scale.x = 0.10
-                    marker.scale.y = 0.10
-                    marker.scale.z = 0.10
-                    marker.pose.orientation.x = 0.0
-                    marker.pose.orientation.y = 0.0
-                    marker.pose.orientation.z = 0.0
-                    marker.pose.orientation.w = (
-                        1.0  # W ist 1 für eine Identitätsrotation
-                    )
-
-                    # Farben setzen
-                    color = get_carla_color(int(cls))
-                    marker.color.r = color[0] / 255.0
-                    marker.color.g = color[1] / 255.0
-                    marker.color.b = color[2] / 255.0
-                    marker.color.a = 1.0  # Volle Deckkraft
-
-                    markers.markers.append(marker)
-
+                    distance_output.append(float(cls))
+                    distance_output.append(float(obj_dist_min_x[0]))
+                    distance_output.append(float(obj_dist_min_abs_y[1]))
                 else:
                     # fallback values for bounding box if
                     # no lidar points where found
