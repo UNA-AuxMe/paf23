@@ -25,10 +25,8 @@ from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
 import asyncio
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Point
-import math
 
-# Carla-Farben basierend auf deiner Definition
+# Carla-Farben
 carla_colors = [
     [0, 0, 0],  # 0: None
     [70, 70, 70],  # 1: Buildings
@@ -45,7 +43,7 @@ carla_colors = [
     [220, 220, 0],  # 12: TrafficSigns
 ]
 
-# COCO-Klassen → Carla-Klassen Mapping (entsprechend deiner Anfrage)
+# COCO-Klassen → Carla-Klassen Mapping
 coco_to_carla = [
     0,  # 0: N/A -> None
     4,  # 1: Person -> Pedestrians
@@ -527,7 +525,7 @@ class VisionNode(CompatibleNode):
                 distance_output.append(float(cls))
                 distance_output.append(float(obj_dist_min_x[0]))
                 distance_output.append(float(obj_dist_min_abs_y[1]))
-                # self.marker_publisher.publish(self.get_marker(0, 0, 0, i))
+                # Just publish markers with closest point to object. No calculating of the real object size atm
                 markers.markers.append(self.get_marker(obj_dist_min_x, i, cls))
 
             else:
@@ -613,47 +611,6 @@ class VisionNode(CompatibleNode):
         marker.pose.position.z = -point[2]
         marker.lifetime = rospy.Duration(0.5)
         return marker
-
-    def get_markers(self, scaled_masks, distance_array):
-        marker_array = MarkerArray()
-        for i, mask in enumerate(scaled_masks):
-            # mask has size 384, 640
-            marker = Marker()
-            marker.header.frame_id = "global"
-            marker.header.stamp = rospy.Time.now()
-            marker.ns = "segmentation"
-            marker.id = i
-            marker.type = Marker.SPHERE
-            marker.action = Marker.ADD
-            marker.scale.x = 0.5
-            marker.scale.y = 0.5
-            marker.scale.z = 0.5
-            marker.color.a = 1.0
-            marker.color.r = 1.0
-            marker.color.g = 0.0
-            marker.color.b = 0.0
-            marker.pose.orientation.x = 0.0
-            marker.pose.orientation.y = 0.0
-            marker.pose.orientation.z = 0.0
-            marker.pose.orientation.w = 1.0
-
-            mask_indices = scaled_masks > 0
-            assert len(mask_indices) > 0
-            # distance_filtered = distance_array[mask_indices]
-
-            for point in mask_indices:
-                x, y = point
-                distance = distance_array[y, x]
-                if distance[0] != np.inf:
-
-                    point = Point()
-                    point.x = distance[0]
-                    point.y = distance[1]
-                    point.z = distance[2]
-                    marker.pose.position = point
-
-                marker_array.markers.append(marker)
-        return marker_array
 
     def min_x(self, dist_array):
         """
