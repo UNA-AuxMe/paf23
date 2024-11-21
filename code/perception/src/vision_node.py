@@ -244,9 +244,14 @@ class VisionNode(CompatibleNode):
         # ultralytics setup
         if self.framework == "ultralytics":
             self.model = self.model(self.weights)
-        self.marker_publisher = rospy.Publisher(
-            "/visualization_marker_array", MarkerArray, queue_size=10
+
+        self.marker_publisher = self.new_publisher(
+            msg_type=Marker,
+            topic=f"/paf/{self.role_name}/visualization_marker_array",
+            qos_profile=1,
         )
+
+        self.marker_publisher.publish(self.get_marker(0, 0, 0, 0))
 
     def setup_camera_subscriptions(self, side):
         """
@@ -465,10 +470,10 @@ class VisionNode(CompatibleNode):
 
         boxes = output[0].boxes
         masks = output[0].masks.data
-        markers = MarkerArray()  # Array of markers for visualization in ROS
+        # markers = MarkerArray()  # Array of markers for visualization in ROS
 
         c_colors = []
-        for box in boxes:
+        for i, box in enumerate(boxes):
             cls = box.cls.item()  # Klassenindex des Objekts
             pixels = box.xyxy[0]  # obere linke und untere rechte Pixelkoordinaten
 
@@ -524,6 +529,8 @@ class VisionNode(CompatibleNode):
                 distance_output.append(float(cls))
                 distance_output.append(float(obj_dist_min_x[0]))
                 distance_output.append(float(obj_dist_min_abs_y[1]))
+                # self.marker_publisher.publish(self.get_marker(0, 0, 0, i))
+
             else:
                 # fallback values for bounding box if
                 # no lidar points where found
@@ -543,7 +550,8 @@ class VisionNode(CompatibleNode):
 
         # publish list of distances of objects for planning
         self.distance_publisher.publish(Float32MultiArray(data=distance_output))
-        self.marker_publisher.publish(markers)
+        # self.marker_publisher.publish(markers)
+        # self.marker_publisher.publish(self.get_marker(0, 0, 0, 0))
         # transform image
         transposed_image = np.transpose(cv_image, (2, 0, 1))
         image_np_with_detections = torch.tensor(transposed_image, dtype=torch.uint8)
@@ -578,9 +586,34 @@ class VisionNode(CompatibleNode):
         )
         np_box_img = np.transpose(mask_image.detach().numpy(), (1, 2, 0))
         box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
-        markers = self.get_markers(scaled_masks, self.dist_arrays)
+        # markers = self.get_markers(scaled_masks, self.dist_arrays)
 
         return box_img
+
+    def get_marker(self, x, y, z, id):
+        marker = Marker()
+        marker.header.frame_id = "global"
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "min_values"
+        marker.id = id
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+        marker.scale.x = 0.5
+        marker.scale.y = 0.5
+        marker.scale.z = 0.5
+        marker.color.a = 1.0
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.pose.position.x = 0
+        marker.pose.position.y = 0
+        marker.pose.position.z = 0
+        marker.lifetime = rospy.Duration(120)
+        return marker
 
     def get_markers(self, scaled_masks, distance_array):
         marker_array = MarkerArray()
@@ -605,9 +638,10 @@ class VisionNode(CompatibleNode):
             marker.pose.orientation.z = 0.0
             marker.pose.orientation.w = 1.0
 
-            # shape 255, 2
             mask_indices = scaled_masks > 0
             assert len(mask_indices) > 0
+            # distance_filtered = distance_array[mask_indices]
+
             for point in mask_indices:
                 x, y = point
                 distance = distance_array[y, x]
