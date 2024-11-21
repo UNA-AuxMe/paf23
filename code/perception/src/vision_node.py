@@ -525,7 +525,8 @@ class VisionNode(CompatibleNode):
                 distance_output.append(float(cls))
                 distance_output.append(float(obj_dist_min_x[0]))
                 distance_output.append(float(obj_dist_min_abs_y[1]))
-                # Just publish markers with closest point to object. No calculating of the real object size atm
+                # Just publish markers with closest point to object. No calculating of
+                # the real object size atm
                 markers.markers.append(self.get_marker(obj_dist_min_x, i, cls))
 
             else:
