@@ -246,12 +246,10 @@ class VisionNode(CompatibleNode):
             self.model = self.model(self.weights)
 
         self.marker_publisher = self.new_publisher(
-            msg_type=Marker,
+            msg_type=MarkerArray,
             topic=f"/paf/{self.role_name}/visualization_marker_array",
             qos_profile=1,
         )
-
-        self.marker_publisher.publish(self.get_marker(0, 0, 0, 0))
 
     def setup_camera_subscriptions(self, side):
         """
@@ -470,7 +468,7 @@ class VisionNode(CompatibleNode):
 
         boxes = output[0].boxes
         masks = output[0].masks.data
-        # markers = MarkerArray()  # Array of markers for visualization in ROS
+        markers = MarkerArray()  # Array of markers for visualization in ROS
 
         c_colors = []
         for i, box in enumerate(boxes):
@@ -530,6 +528,7 @@ class VisionNode(CompatibleNode):
                 distance_output.append(float(obj_dist_min_x[0]))
                 distance_output.append(float(obj_dist_min_abs_y[1]))
                 # self.marker_publisher.publish(self.get_marker(0, 0, 0, i))
+                markers.markers.append(self.get_marker(obj_dist_min_x, i, cls))
 
             else:
                 # fallback values for bounding box if
@@ -550,8 +549,7 @@ class VisionNode(CompatibleNode):
 
         # publish list of distances of objects for planning
         self.distance_publisher.publish(Float32MultiArray(data=distance_output))
-        # self.marker_publisher.publish(markers)
-        # self.marker_publisher.publish(self.get_marker(0, 0, 0, 0))
+        self.marker_publisher.publish(markers)
         # transform image
         transposed_image = np.transpose(cv_image, (2, 0, 1))
         image_np_with_detections = torch.tensor(transposed_image, dtype=torch.uint8)
@@ -590,9 +588,10 @@ class VisionNode(CompatibleNode):
 
         return box_img
 
-    def get_marker(self, x, y, z, id):
+    def get_marker(self, point, id, obj_class):
+        c_color = get_carla_color(int(obj_class))
         marker = Marker()
-        marker.header.frame_id = "global"
+        marker.header.frame_id = "hero"
         marker.header.stamp = rospy.Time.now()
         marker.ns = "min_values"
         marker.id = id
@@ -602,17 +601,17 @@ class VisionNode(CompatibleNode):
         marker.scale.y = 0.5
         marker.scale.z = 0.5
         marker.color.a = 1.0
-        marker.color.r = 1.0
-        marker.color.g = 0.0
-        marker.color.b = 0.0
+        marker.color.r = c_color[0]
+        marker.color.g = c_color[1]
+        marker.color.b = c_color[2]
         marker.pose.orientation.x = 0.0
         marker.pose.orientation.y = 0.0
         marker.pose.orientation.z = 0.0
         marker.pose.orientation.w = 1.0
-        marker.pose.position.x = 0
-        marker.pose.position.y = 0
-        marker.pose.position.z = 0
-        marker.lifetime = rospy.Duration(120)
+        marker.pose.position.x = point[0]
+        marker.pose.position.y = point[1]
+        marker.pose.position.z = -point[2]
+        marker.lifetime = rospy.Duration(0.5)
         return marker
 
     def get_markers(self, scaled_masks, distance_array):
