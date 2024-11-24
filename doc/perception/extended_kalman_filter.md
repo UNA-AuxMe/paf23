@@ -6,7 +6,7 @@ The Extended Kalman Filter node will be responsible for filtering the position a
 
 The position is three dimensional but we assume that the car is only driving in a plane right now. That is why the z position and is not estimated by the Kalman Filter but instead is currently calculated using a rolling average.
 
-Currently the state vector of the car is calculated with the data from three different sensors. The goal is to also include sensor fusion in the sense that the heading as well as the acceleration will be calculated using different sensor data. The heading will be derived from the angle of the front wheels (which is provided by Acting) and the acceleration will be calculated using the throttle (which is also provided by Acting).
+Currently the state vector of the car is calculated with the data from three different sensors. The goal is to also include sensor fusion in the sense that the heading as well as the acceleration will be calculated using different sensor data. The heading will be derived from the angle of the front wheels (which can be derived from data published by Acting) and the acceleration will be calculated using the throttle (which can be derived from data published by Acting).
 
 This file covers the following topics:
 - [Theory on linear Kalman Filters](#theory-on-linear-kalman-filters)
@@ -16,6 +16,10 @@ This file covers the following topics:
 - [Extending the model](#extending-the-model)
   - [1. Prediction (EKF)](#1-prediction-ekf)
   - [2. Correction (EKF)](#2-correction-ekf)
+- [Sensor fusion](#sensor-fusion)
+  - [Sensor fusion for the position](#sensor-fusion-for-the-position)
+  - [Sensor fusion for the heading](#sensor-fusion-for-the-heading)
+  - [Splitting the state vector](#splitting-the-state-vector)
 
 ## Theory on linear Kalman Filters
 
@@ -32,14 +36,14 @@ But to calculate these entries we need some other variables (like the velocity) 
 The Filter that was used up until now is a (linear) [Kalman Filter](kalman_filter.md). The state vector looks like this:
 
 $$
-\vec{x_s} =
+\vec{x}_{state} =
 \begin{bmatrix}
-    x\\
-    y\\
-    v_x\\
-    v_y\\
-    \varphi\\
-    \dot{\varphi}\\
+  x\\
+  y\\
+  v_x\\
+  v_y\\
+  \varphi\\
+  \dot{\varphi}\\
 \end{bmatrix}
 $$
 
@@ -161,14 +165,14 @@ It is worth to mention that the velocity is no longer devided into two state vec
 Now the state vector will look like this:
 
 $$
-\vec{x_s} =
+\vec{x}_{state} =
 \begin{bmatrix}
-    x\\
-    y\\
-    v\\
-    a\\
-    \varphi\\
-    \dot{\varphi}\\
+  x\\
+  y\\
+  v\\
+  a\\
+  \varphi\\
+  \dot{\varphi}\\
 \end{bmatrix}
 $$
 
@@ -225,3 +229,113 @@ $\^{x}^+(k) = \^{x}^-(k) + K(k) [y(k) - g(\^{x}^-(k))]$
 $P^+(k) = [I - K(k)C(k)]P^-(k)[I - K(k)C(k)]^T + K(k)R(k)K^T(k)$
 
 The matrix $C$ describes how the state vector is transformed to to get the predicted measurement. In our case this results in an identity matrix because the function $g$ basically has no effect and just passes along the state entries.
+
+## Sensor fusion
+
+In an autonomous vehicle we often fuse the data of multiple sensors to add redundancy and certainty.
+If two sensors are measuring the same thing, for example a distance, then incomplete or noisy data can be compensated by fusing those two measurements.
+
+For this purpose we can use a kalman filter.
+
+Like before we will estimate a state and its corresponding uncertainty (via a covariance matrix).
+As an example you could use the fusion of two Lidar sensors that measured the distance to a pedestrian ([source](https://www.thinkautonomous.ai/blog/sensor-fusion/)).
+
+![sensor_fusion_example](../assets/perception/sensor_fusion_example.png)
+
+The first Lidar measures the pedestrian at 10 meters distance while the second detects it 10.8 meters away.
+If we consider both sensors and their respective uncertainties we will get a better estimation on where the pedestrian is really located.
+
+In a Kalman filter we have a constant cycle of prediction and correction.
+In the prediction step we estimate the state only based on the model.
+Then in the correction step a measurement from the sensor is taken and the difference between the prediction and measurement as well as the uncertainties from the measurement / process noise are taken into account to update the current state estimation. Because we combined the knowledge of the model and measurement the uncertainty of this updated state is then far less then before.
+
+A state (estimate, measurement or updated state) can be represented by a Gaussian distribution so the Kalman filter cycle can be visualized like this ([source](https://www.thinkautonomous.ai/blog/sensor-fusion/)):
+
+![kalman_cycle_visualization](../assets/perception/kalman_cycle_visualization.png)
+
+So if we want to improve the estimation and its certainty by using multiple sensors, a new prediction and correction cycle is run every time new sensor data arrives.
+
+In the following picture ([source](https://www.thinkautonomous.ai/blog/sensor-fusion/)) you can see an example of improving the prediction of a system state (in this case position and velocity) by using a Radar and Lidar sensor.
+
+![sensor_fusion_cycle](../assets/perception/sensor_fusion_cycle.png)
+
+The advantage of sensor fusion is that more data can be used which generally improves the estimation.
+
+It is important to note that for all sensors the same values are calculated which means that the state vector stays the same.
+
+### Sensor fusion for the position
+
+The x and y position of the vehicle is dependent on the acceleration of the car.
+Instead of taking the linear acceleration data provided by the IMU sensor we could use the throttle.
+The applied throttle is controlled by Acting is published on a topic.
+
+The possible formula ([source](https://robotics.stackexchange.com/questions/11178/kalman-filter-gps-imu)) for the transformation from throttle to acceleration is: $a = \frac{c(throttle) - v}{\tau}$
+
+The parameter $\tau$ is the time constant and $c$ is a value that scales the throttle to a speed.
+Setting the parameters would require creating a step response from the car for setting the throttle to a max.
+Realising this might prove itself quite difficult.
+
+### Sensor fusion for the heading
+
+Currently the heading ($\varphi$) is calculated by "integrating" the angular velocity around the z axis ($\dot{\varphi}$). The angular velocities are measured by the IMU sensor.
+
+An alternative way is to calculate the heading via a 2D bicycle model which can be seen as a simplification of a car (with only two wheels).
+For the model a reference point needs to be set.
+For now it seems the easiest to place it at the center of the rear axle.
+
+An illustration of the model can be seen in the following picture ([source](https://www.shuffleai.blog/blog/Simple_Understanding_of_Kinematic_Bicycle_Model.html)).
+
+![bicycle_model](bicycle_model.png)
+
+ICR stands for Instantaneous Center of Rotation.
+The angle $\theta$ describes the heading, $\delta$ is the steering angle (which can be derived from data published by Acting) and $\omega$ stands for the angular velocity (around the z axis).
+Another important parameter is $L$ which is the wheel base (so the distance between the rear and front axle).
+
+From this setup we can derive a formula for the angular velocity: $\dot{\varphi} \leftarrow \frac{v}{L} \cdot tan(\delta)$
+
+The heading can then be calculated like before: $\varphi \leftarrow \varphi + \dot{\varphi} \cdot \Delta t$
+
+Because the angular velocity is dependet on the steering angle $\delta$ in a non-linear manner, the angle $\delta$ should be added as a state vector entry.
+
+### Splitting the state vector
+
+The calculations and sensor fusions might be more neat if the current state vector
+
+$$
+\vec{x}_{state} =
+\begin{bmatrix}
+  x\\
+  y\\
+  v\\
+  a\\
+  \varphi\\
+  \dot{\varphi}\\
+  \delta
+\end{bmatrix}
+$$
+
+gets split into two state vectors.
+One would be used to estimate the position while the other is responsible for the heading.
+
+The position state vector would consist of the first four entries of the original state vector because only those entries are relevant for the location.
+
+$$
+\vec{x}_{position} =
+\begin{bmatrix}
+  x\\
+  y\\
+  v\\
+  a\\
+\end{bmatrix}
+$$
+
+The heading state vector would consist of the last three entries of the original state vector because only those entries are relevant for the heading.
+
+$$
+\vec{x}_{heading} =
+\begin{bmatrix}
+  \varphi\\
+  \dot{\varphi}\\
+  \delta
+\end{bmatrix}
+$$
