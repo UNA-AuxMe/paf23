@@ -10,6 +10,10 @@
         <param name="control_loop_rate" value="$(arg control_loop_rate)" />
     </node>
 
+    <node pkg="acting" type="trajectory_conversion.py" name="trajectory_conversion" output="screen">
+    </node>
+
+
     <node pkg="acting" type="MainFramePublisher.py" name="MainFramePublisher" output="screen">
         <param name="control_loop_rate" value="$(arg control_loop_rate)" />
         <param name="role_name" value="$(arg role_name)" />
