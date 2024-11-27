@@ -4,9 +4,11 @@
 
 The Extended Kalman Filter node will be responsible for filtering the position and heading data. Currently the used sensors are an IMU and GNSS sensor together with the CARLA speedometer.
 
-The position is three dimensional but we assume that the car is only driving in a plane right now. That is why the z position and is not estimated by the Kalman Filter but instead is currently calculated using a rolling average.
+The position is three-dimensional, but we assume that the car is only driving in a plane right now. That is why the z position and is not estimated by the Kalman Filter but instead is currently calculated using a rolling average.
 
-Currently the state vector of the car is calculated with the data from three different sensors. The goal is to also include sensor fusion in the sense that the heading as well as the acceleration will be calculated using different sensor data. The heading will be derived from the angle of the front wheels (which can be derived from data published by Acting) and the acceleration will be calculated using the throttle (which can be derived from data published by Acting).
+Currently the state vector of the car is calculated with the data from three different sensors.
+The goal is to also include sensor fusion in the sense that the heading as well as the acceleration will be calculated using different sensor data.
+The heading will be derived from the angle of the front wheels (which can be derived from data published by Acting) and the acceleration will be calculated using the throttle (which can be derived from data published by Acting).
 
 This file covers the following topics:
 - [Theory on linear Kalman Filters](#theory-on-linear-kalman-filters)
@@ -47,7 +49,7 @@ $$
 \end{bmatrix}
 $$
 
-The meaning of the symbols used in the vector and their calculation is explained in the follwing table:
+The meaning of the symbols used in the vector and their calculation is explained in the following table:
 
 $$
 \begin{array}{ c l l }
@@ -63,7 +65,7 @@ $$
 
 After an initialization (of $\^{x}^+(0)$ and $P^+(0)$) the algorithm for the Kalman Filter consists of two steps which get repeated over and over:
 
-### 1. Prediction (KF):
+### 1. Prediction (KF)
 
 The state and its covariance matrix (the uncertainty of the state) are estimated. The formulas can be seen below (assuming there are no external inputs).
 The $\text{ }\^{}\text{ }$ above the $x$ represents that it's an estimate and not the true state of the system.
@@ -91,15 +93,15 @@ The entries in the matrix are set by you and can be adjusted.
 If the entries in the matrix are big, this means that there's a lot of uncertainty of the states of the model. As a consequence you trust the measurements more.
 If the entries in the matrix are small, this means that you trust the states in the model. As a consequence you trust the model more and the measurements less.
 
-### 2. Correction (KF):
+### 2. Correction (KF)
 
 The estimated state gets compared to the measured values. The state and its covariance matrix are corrected according to the error. The formulas are as follows (assuming there are no external inputs).
 
-$K(k) = P^-(k)C^T(k)[R(k) + C(k)P^-(k)C^T(k)]^{-1}$
+$K(k) = P^-(k)C^T(k) [R(k) + C(k)P^-(k)C^T(k)]^{-1}$
 
 $\^{x}^+(k) = \^{x}^-(k) + K(k) [y(k) - C(k)\^{x}^-(k)]$
 
-$P^+(k) = [I - K(k)C(k)]P^-(k)[I - K(k)C(k)]^T + K(k)R(k)K^T(k)$
+$P^+(k) = [I - K(k)C(k)]P^-(k) [I - K(k)C(k)]^T + K(k)R(k)K^T(k)$
 
 The matrix $K$ is known as the Kalman gain.
 
@@ -154,13 +156,13 @@ Instead we linearize the current mean and its covariance.
 This means that we will replace the current matrix $A$ with a Jacobian matrix.
 
 Currently it is assumed that the vehicle always drives at a constant velocity.
-In a normal car this assumtion is often not satisfied.
+In a normal car this assumption is often not satisfied.
 So to make the model more accurate we will add the acceleration of the vehicle to the equations.
 
 The measurements for the linear acceleration in each direction (x/y/z) are provided by the IMU sensor.
 Just like with the velocity we ignore the acceleration in the z direction for now and continue to assume that the vehicle drives in a plane.
 
-It is worth to mention that the velocity is no longer devided into two state vector entries $v_x$ and $v_y$ but is combined into the entry $v$.
+It is worth to mention that the velocity is no longer divided into two state vector entries $v_x$ and $v_y$ but is combined into the entry $v$.
 
 Now the state vector will look like this:
 
@@ -176,7 +178,7 @@ $$
 \end{bmatrix}
 $$
 
-The meaning of the symbols used in the vector and their calculation is explained in the follwing table:
+The meaning of the symbols used in the vector and their calculation is explained in the following table:
 
 $$
 \begin{array}{ c l l c }
@@ -195,11 +197,11 @@ However the basic steps of a Kalman Filter are still maintained even though the 
 
 After an initialization (of $\^{x}^+(0)$ and $P^+(0)$) the algorithm consists of the same two steps as before which get repeated over and over:
 
-### 1. Prediction (EKF):
+### 1. Prediction (EKF)
 
 $\^{x}^-(k) = f_D(\^{x}^+(k-1))$
 
-$P^-(k) = A(k-1) P^+(k-1)A^T(k-1) + Q(k-1)$ mit $A(k-1) = \frac{\delta f_D}{\delta x} \vert_{\^{x}^+(k-1)}$
+$P^-(k) = A(k-1) P^+(k-1)A^T(k-1) + Q(k-1)$ with $A(k-1) = \frac{\delta f_D}{\delta x} \vert_{\^{x}^+(k-1)}$
 
 The formula for the matrix $A$ might look a bit intimidating but like mentioned before we just need to calculate the Jacobi matrix.
 
@@ -220,22 +222,22 @@ A =
 \end{bmatrix}
 $$
 
-### 2. Correction (EKF):
+### 2. Correction (EKF)
 
-$K(k) = P^-(k)C^T(k)[R(k) + C(k)P^-(k)C^T(k)]^{-1}$ mit $C(k) = \frac{\delta g}{\delta x} \vert_{\^{x}^-(k)}$
+$K(k) = P^-(k)C^T(k) [R(k) + C(k)P^-(k)C^T(k)]^{-1}$ with $C(k) = \frac{\delta g}{\delta x} \vert_{\^{x}^-(k)}$
 
 $\^{x}^+(k) = \^{x}^-(k) + K(k) [y(k) - g(\^{x}^-(k))]$
 
-$P^+(k) = [I - K(k)C(k)]P^-(k)[I - K(k)C(k)]^T + K(k)R(k)K^T(k)$
+$P^+(k) = [I - K(k)C(k)]P^-(k) [I - K(k)C(k)]^T + K(k)R(k)K^T(k)$
 
-The matrix $C$ describes how the state vector is transformed to to get the predicted measurement. In our case this results in an identity matrix because the function $g$ basically has no effect and just passes along the state entries.
+The matrix $C$ describes how the state vector is transformed to get the predicted measurement. In our case this results in an identity matrix because the function $g$ basically has no effect and just passes along the state entries.
 
 ## Sensor fusion
 
 In an autonomous vehicle we often fuse the data of multiple sensors to add redundancy and certainty.
 If two sensors are measuring the same thing, for example a distance, then incomplete or noisy data can be compensated by fusing those two measurements.
 
-For this purpose we can use a kalman filter.
+For this purpose we can use a Kalman filter.
 
 Like before we will estimate a state and its corresponding uncertainty (via a covariance matrix).
 As an example you could use the fusion of two Lidar sensors that measured the distance to a pedestrian ([source](https://www.thinkautonomous.ai/blog/sensor-fusion/)).
@@ -247,7 +249,8 @@ If we consider both sensors and their respective uncertainties we will get a bet
 
 In a Kalman filter we have a constant cycle of prediction and correction.
 In the prediction step we estimate the state only based on the model.
-Then in the correction step a measurement from the sensor is taken and the difference between the prediction and measurement as well as the uncertainties from the measurement / process noise are taken into account to update the current state estimation. Because we combined the knowledge of the model and measurement the uncertainty of this updated state is then far less then before.
+Then in the correction step a measurement from the sensor is taken and the difference between the prediction and measurement as well as the uncertainties from the measurement / process noise are taken into account to update the current state estimation.
+Because we combined the knowledge of the model and measurement the uncertainty of this updated state is then far less than before.
 
 A state (estimate, measurement or updated state) can be represented by a Gaussian distribution so the Kalman filter cycle can be visualized like this ([source](https://www.thinkautonomous.ai/blog/sensor-fusion/)):
 
@@ -289,13 +292,13 @@ An illustration of the model can be seen in the following picture ([source](http
 
 ICR stands for Instantaneous Center of Rotation.
 The angle $\theta$ describes the heading, $\delta$ is the steering angle (which can be derived from data published by Acting) and $\omega$ stands for the angular velocity (around the z axis).
-Another important parameter is $L$ which is the wheel base (so the distance between the rear and front axle).
+Another important parameter is $L$ which is the wheelbase (so the distance between the rear and front axle).
 
 From this setup we can derive a formula for the angular velocity: $\dot{\varphi} \leftarrow \frac{v}{L} \cdot tan(\delta)$
 
 The heading can then be calculated like before: $\varphi \leftarrow \varphi + \dot{\varphi} \cdot \Delta t$
 
-Because the angular velocity is dependet on the steering angle $\delta$ in a non-linear manner, the angle $\delta$ should be added as a state vector entry.
+Because the angular velocity is dependent on the steering angle $\delta$ in a non-linear manner, the angle $\delta$ should be added as a state vector entry.
 
 ### Splitting the state vector
 
