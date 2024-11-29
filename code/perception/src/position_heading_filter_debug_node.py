@@ -98,14 +98,14 @@ class position_heading_filter_debug_node(CompatibleNode):
         # test_filter_pos subscriber:
         self.test_filter_pos_subscriber = self.new_subscription(
             PoseStamped,
-            f"/paf/{self.role_name}/kalman_pos",
+            f"/paf/{self.role_name}/extended_kalman_pos",
             self.set_test_filter_pos,
             qos_profile=1,
         )
         # test_filter_heading subscriber:
         self.test_filter_heading_subscriber = self.new_subscription(
             Float32,
-            f"/paf/{self.role_name}/kalman_heading",
+            f"/paf/{self.role_name}/extended_kalman_heading",
             self.set_test_filter_heading,
             qos_profile=1,
         )
