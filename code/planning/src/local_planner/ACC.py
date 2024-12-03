@@ -9,6 +9,8 @@ from rospy import Publisher, Subscriber
 from std_msgs.msg import Bool, Float32, Float32MultiArray
 from utils import calculate_rule_of_thumb, interpolate_speed
 
+from planning.msg import Trajectory
+
 
 class ACC(CompatibleNode):
     """ACC (Adaptive Cruise Control) calculates and publishes the desired speed based on
@@ -76,6 +78,13 @@ class ACC(CompatibleNode):
         # Publish desired speed to acting
         self.velocity_pub: Publisher = self.new_publisher(
             Float32, f"/paf/{self.role_name}/acc_velocity", qos_profile=1
+        )
+
+        # Publish trajectory including desired velocity
+        self.new_trajectory_pub: Publisher = self.new_publisher(
+            msg_type=Trajectory,
+            topic=f"/paf/{self.role_name}/new_trajectory",
+            qos_profile=1,
         )
 
         # Publish current waypoint and speed limit

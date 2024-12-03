@@ -18,6 +18,8 @@ from scipy.spatial.transform import Rotation
 from std_msgs.msg import Bool, Float32, Float32MultiArray, Int16, String
 from utils import NUM_WAYPOINTS, TARGET_DISTANCE_TO_STOP, convert_to_ms, spawn_car
 
+from planning.msg import Trajectory
+
 sys.path.append(os.path.abspath(sys.path[0] + "/../../planning/src/behavior_agent"))
 from behaviours import behavior_speed as bs  # type: ignore # noqa: E402
 
@@ -160,6 +162,12 @@ class MotionPlanning(CompatibleNode):
         )
         self.velocity_pub: Publisher = self.new_publisher(
             Float32, f"/paf/{self.role_name}/target_velocity", qos_profile=1
+        )
+        # Publish new trajectory (redundant to trajectory and target_velocity)
+        self.new_traj_pub: Publisher = self.new_publisher(
+            msg_type=Trajectory,
+            topic=f"/paf/{self.role_name}/new_trajectory",
+            qos_profile=1,
         )
 
         # TODO move up to subscribers

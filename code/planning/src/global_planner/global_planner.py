@@ -10,6 +10,7 @@ from nav_msgs.msg import Path
 from preplanning_trajectory import OpenDriveConverter
 from ros_compatibility.node import CompatibleNode
 from std_msgs.msg import Float32MultiArray, String
+from planning.msg import Trajectory
 
 RIGHT = 1
 LEFT = 2
@@ -71,6 +72,13 @@ class PrePlanner(CompatibleNode):
         self.path_pub = self.new_publisher(
             msg_type=Path,
             topic="/paf/" + self.role_name + "/trajectory_global",
+            qos_profile=1,
+        )
+
+        # Publish trajectory including desired velocity
+        self.new_trajectory_pub = self.new_publisher(
+            msg_type=Trajectory,
+            topic=f"/paf/{self.role_name}/new_trajectory",
             qos_profile=1,
         )
 
