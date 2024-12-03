@@ -54,6 +54,7 @@ class MotionPlanning(CompatibleNode):
         self.current_pos = None
         self.current_heading = None
         self.trajectory = None
+        self.new_trajectory = None
         self.overtaking = False
         self.current_wp = None
         self.enhanced_path = None
@@ -321,7 +322,7 @@ class MotionPlanning(CompatibleNode):
         else:
             path.poses = (
                 pose_list[: int(currentwp) + int(distance / 2)]
-                + result
+                + resultgenerate_overtake_trajectory
                 + pose_list[int(currentwp + distance + NUM_WAYPOINTS) :]
             )
 
@@ -334,9 +335,27 @@ class MotionPlanning(CompatibleNode):
             data (Path): Trajectory waypoints
         """
         self.trajectory = data
+        # self.get_new_trajectory_from_path(data)
         self.loginfo("Trajectory received")
 
         self.__corners = self.__calc_corner_points()
+
+    def get_new_trajectory_from_path(self, path: Path):
+        self.new_trajectory.header = self.trajectory.header
+        i = 0
+        for p in self.trajectory.poses:
+            self.new_trajectory.navigationPoints[i].position.x = self.trajectory.poses[
+                i
+            ].position.x
+            self.new_trajectory.navigationPoints[i].position.y = self.trajectory.poses[
+                i
+            ].position.y
+            self.new_trajectory.navigationPoints[i].position.z = self.trajectory.poses[
+                i
+            ].position.z
+            self.new_trajectory.navigationPoints[i].speed = 0.0
+            self.new_trajectory.navigationPoints[i].behaviour = 0
+        return 0
 
     def __calc_corner_points(self) -> List[List[np.ndarray]]:
         """
@@ -710,6 +729,8 @@ class MotionPlanning(CompatibleNode):
             ):
                 self.trajectory.header.stamp = rospy.Time.now()
                 self.traj_pub.publish(self.trajectory)
+                # self.new_trajectory.header.stamp = self.trajectory.header.stamp
+                # self.new_traj_pub.publish(self.new_trajectory)
                 self.update_target_speed(self.__acc_speed, self.__curr_behavior)
             else:
                 self.velocity_pub.publish(0.0)
