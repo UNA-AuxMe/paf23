@@ -139,14 +139,14 @@ class ExtendedKalmanFilter(CompatibleNode):
         # PUBLISHER
 
         # set up the publisher for the position
-        self.extended_kalman_pos_pub = self.new_publisher(
+        self.ekf_position_publisher = self.new_publisher(
             PoseStamped,
             "/paf/" + self.role_name + "/extended_kalman_pos",
             qos_profile=1,
         )
 
         # set up the publisher for the heading
-        self.extended_kalman_heading_pub = self.new_publisher(
+        self.ekf_heading_publisher = self.new_publisher(
             Float32,
             "/paf/" + self.role_name + "/extended_kalman_heading",
             qos_profile=1,
@@ -166,10 +166,9 @@ class ExtendedKalmanFilter(CompatibleNode):
             and self.heading_initialized
             and self.ang_vel_initialized
         ):
+            self.loginfo("Extended Kalman Filter is waiting for initialization")
             rospy.sleep(1)
         rospy.sleep(1)
-
-        self.loginfo("Extended Kalman Filter started its loop!")
 
         # initialize the state vector and the covariance matrix
         # -> state_vector_corr and P_corr
@@ -202,13 +201,14 @@ class ExtendedKalmanFilter(CompatibleNode):
             after adjusting the estimation
             according to the measurement (correction): data published
             """
+            self.loginfo("Extended Kalman Filter started its loop")
             while True:
                 self.prediction()
                 self.correction()
 
                 # Publish the kalman-data:
                 self.publish_heading()
-                self.publish_location()
+                self.publish_position()
                 rospy.sleep(self.control_loop_rate)
 
         threading.Thread(target=loop).start()
@@ -306,33 +306,42 @@ class ExtendedKalmanFilter(CompatibleNode):
         """
         Publish the extended kalman heading
         """
-        extended_kalman_heading = Float32()
-        extended_kalman_heading.data = self.state_vector_corr[4]
-        self.extended_kalman_heading_pub.publish(extended_kalman_heading)
+        ekf_heading = Float32()
+        ekf_heading.data = self.state_vector_corr[4]
+        print("heading: " + str(ekf_heading.data))
+        # print("heading type: " + str(type(ekf_heading)))
+        self.ekf_heading_publisher.publish(ekf_heading)
 
-    def publish_location(self):
+    def publish_position(self):
         """
         Publish the extended kalman location
         """
-        extended_kalman_position = PoseStamped()
+        ekf_position = PoseStamped()
 
-        extended_kalman_position.header.frame_id = self.frame_id
-        extended_kalman_position.header.stamp = rospy.Time.now()
-        extended_kalman_position.header.seq = self.publish_seq
+        ekf_position.header.frame_id = self.frame_id
+        ekf_position.header.stamp = rospy.Time.now()
+        ekf_position.header.seq = self.publish_seq
 
         self.publish_seq.data += 1
 
-        extended_kalman_position.pose.position.x = self.state_vector_corr[0]
-        extended_kalman_position.pose.position.y = self.state_vector_corr[1]
+        ekf_position.pose.position.x = self.state_vector_corr[0]
+        ekf_position.pose.position.y = self.state_vector_corr[1]
 
-        extended_kalman_position.pose.position.z = self.z_pos_m
+        ekf_position.pose.position.z = self.z_pos_m
+        """print(
+            "type(ekf_position.pose.position.z): "
+            + str(type(ekf_position.pose.position.z))
+        )
+        print("type(self.z_pos_m): " + str(type(self.z_pos_m)))"""
 
-        extended_kalman_position.pose.orientation.x = 0
-        extended_kalman_position.pose.orientation.y = 0
-        extended_kalman_position.pose.orientation.z = 1
-        extended_kalman_position.pose.orientation.w = 0
-        # Publish the kalman-position
-        self.extended_kalman_heading_pub.publish(extended_kalman_position)
+        ekf_position.pose.orientation.x = 0
+        ekf_position.pose.orientation.y = 0
+        ekf_position.pose.orientation.z = 1
+        ekf_position.pose.orientation.w = 0
+
+        print(ekf_position.pose)
+        # print("position type: " + str(type(ekf_position)))
+        self.ekf_position_publisher.publish(ekf_position)
 
     def update_imu_data(self, imu_data):
         """
@@ -361,6 +370,13 @@ class ExtendedKalmanFilter(CompatibleNode):
         self.ang_vel_m = imu_data.angular_velocity.z
         self.acc_x_m = imu_data.linear_acceleration.x
         self.acc_y_m = imu_data.linear_acceleration.y
+
+        if not self.heading_initialized:
+            self.heading_initialized = True
+        if not self.ang_vel_initialized:
+            self.ang_vel_initialized = True
+        if not self.acc_initialized:
+            self.acc_initialized = True
 
     def update_position(self, unfiltered_pos):
         """
