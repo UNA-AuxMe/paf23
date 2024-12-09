@@ -60,6 +60,12 @@
       - deeplabv3_resnet101
       - yolov8x-seg
       - yolo11n-seg
+<<<<<<< HEAD
+=======
+      - yolo11s-seg
+      - yolo11m-seg
+      - yolo11l-seg
+>>>>>>> 538-feature-update-and-use-ultralytics-yolov11-for-object-detection
       -->
 
     <param name="model" value="yolo11n-seg" />

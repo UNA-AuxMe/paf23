@@ -15,6 +15,7 @@ from torchvision.models.detection.faster_rcnn import (
 )
 import torchvision.transforms as t
 import cv2
+from vision_node_helper import get_carla_class_name, get_carla_color
 from rospy.numpy_msg import numpy_msg
 from sensor_msgs.msg import Image as ImageMsg
 from std_msgs.msg import Header, Float32MultiArray
@@ -24,113 +25,7 @@ import numpy as np
 from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
 import asyncio
 import rospy
-from visualization_msgs.msg import Marker, MarkerArray
-
-# Carla-Farben
-carla_colors = [
-    [0, 0, 0],  # 0: None
-    [70, 70, 70],  # 1: Buildings
-    [190, 153, 153],  # 2: Fences
-    [72, 0, 90],  # 3: Other
-    [220, 20, 60],  # 4: Pedestrians
-    [153, 153, 153],  # 5: Poles
-    [157, 234, 50],  # 6: RoadLines
-    [128, 64, 128],  # 7: Roads
-    [244, 35, 232],  # 8: Sidewalks
-    [107, 142, 35],  # 9: Vegetation
-    [0, 0, 255],  # 10: Vehicles
-    [102, 102, 156],  # 11: Walls
-    [220, 220, 0],  # 12: TrafficSigns
-]
-
-# COCO-Klassen → Carla-Klassen Mapping
-coco_to_carla = [
-    0,  # 0: N/A -> None
-    4,  # 1: Person -> Pedestrians
-    10,  # 2: Bicycle -> Vehicles
-    10,  # 3: Car -> Vehicles
-    10,  # 4: Motorbike -> Vehicles
-    1,  # 5: Airplane -> Buildings
-    10,  # 6: Bus -> Vehicles
-    1,  # 7: Train -> Buildings
-    10,  # 8: Truck -> Vehicles
-    1,  # 9: Boat -> Buildings
-    12,  # 10: Traffic Light -> TrafficSigns
-    11,  # 11: Fire Hydrant -> Walls
-    0,  # 12: N/A -> None
-    0,  # 13: N/A -> None
-    0,  # 14: N/A -> None
-    5,  # 15: Parking Meter -> Poles
-    3,  # 16: Bench -> Other
-    9,  # 17: Bird -> Vegetation
-    9,  # 18: Cat -> Vegetation
-    9,  # 19: Dog -> Vegetation
-    9,  # 20: Horse -> Vegetation
-    9,  # 21: Sheep -> Vegetation
-    9,  # 22: Cow -> Vegetation
-    9,  # 23: Elephant -> Vegetation
-    9,  # 24: Bear -> Vegetation
-    9,  # 25: Zebra -> Vegetation
-    9,  # 26: Giraffe -> Vegetation
-    0,  # 27: N/A -> None
-    3,  # 28: Backpack -> Other
-    3,  # 29: Umbrella -> Other
-    3,  # 30: Handbag -> Other
-    3,  # 31: Tie -> Other
-    3,  # 32: Suitcase -> Other
-    3,  # 33: Frisbee -> Other
-    3,  # 34: Skis -> Other
-    3,  # 35: Snowboard -> Other
-    3,  # 36: Sports Ball -> Other
-    3,  # 37: Kite -> Other
-    3,  # 38: Baseball Bat -> Other
-    3,  # 39: Baseball Glove -> Other
-    3,  # 40: Skateboard -> Other
-    3,  # 41: Surfboard -> Other
-    3,  # 42: Tennis Racket -> Other
-    3,  # 43: Bottle -> Other
-    3,  # 44: Wine Glass -> Other
-    3,  # 45: Cup -> Other
-    3,  # 46: Fork -> Other
-    3,  # 47: Knife -> Other
-    3,  # 48: Spoon -> Other
-    3,  # 49: Bowl -> Other
-    9,  # 50: Banana -> Vegetation
-    9,  # 51: Apple -> Vegetation
-    3,  # 52: Sandwich -> Other
-    9,  # 53: Orange -> Vegetation
-    9,  # 54: Broccoli -> Vegetation
-    9,  # 55: Carrot -> Vegetation
-    3,  # 56: Hot Dog -> Other
-    3,  # 57: Pizza -> Other
-    3,  # 58: Donut -> Other
-    3,  # 59: Cake -> Other
-    3,  # 60: Chair -> Other
-    1,  # 61: Couch -> Buildings
-    1,  # 62: Potted Plant -> Vegetation
-    1,  # 63: Bed -> Buildings
-    1,  # 64: Dining Table -> Buildings
-    1,  # 65: Toilet -> Buildings
-    0,  # 66: N/A -> None
-    0,  # 67: N/A -> None
-    0,  # 68: N/A -> None
-    0,  # 69: N/A -> None
-    1,  # 70: TV -> Buildings
-    3,  # 71: Laptop -> Other
-    3,  # 72: Mouse -> Other
-    3,  # 73: Remote -> Other
-    3,  # 74: Keyboard -> Other
-    3,  # 75: Cell Phone -> Other
-    1,  # 76: Microwave -> Buildings
-    1,  # 77: Oven -> Buildings
-    1,  # 78: Toaster -> Buildings
-    1,  # 79: Sink -> Buildings
-]
-
-
-def get_carla_color(coco_class):
-    carla_class = coco_to_carla[coco_class]
-    return carla_colors[carla_class]
+from ultralytics.utils.ops import scale_masks
 
 
 class VisionNode(CompatibleNode):
@@ -185,6 +80,10 @@ class VisionNode(CompatibleNode):
             "yolo11n-seg": (YOLO, "yolo11n-seg.pt", "segmentation", "ultralytics"),
             "sam_l": (SAM, "sam_l.pt", "detection", "ultralytics"),
             "FastSAM-x": (FastSAM, "FastSAM-x.pt", "detection", "ultralytics"),
+            "yolo11n-seg": (YOLO, "yolo11n-seg.pt", "segmentation", "ultralytics"),
+            "yolo11s-seg": (YOLO, "yolo11s-seg.pt", "segmentation", "ultralytics"),
+            "yolo11m-seg": (YOLO, "yolo11m-seg.pt", "segmentation", "ultralytics"),
+            "yolo11l-seg": (YOLO, "yolo11l-seg.pt", "segmentation", "ultralytics"),
         }
 
         # general setup
@@ -455,7 +354,7 @@ class VisionNode(CompatibleNode):
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
 
         # run model prediction
-        output = self.model(cv_image, half=True, verbose=False)
+        output = self.model.track(cv_image, half=True, verbose=False, imgsz=640)
 
         # handle distance of objects
 
@@ -463,6 +362,11 @@ class VisionNode(CompatibleNode):
         distance_output = []
         c_boxes = []
         c_labels = []
+        c_colors = []
+        if hasattr(output[0], "masks") and output[0].masks is not None:
+            masks = output[0].masks.data
+        else:
+            masks = None
 
         boxes = output[0].boxes
         masks = output[0].masks.data
@@ -473,10 +377,9 @@ class VisionNode(CompatibleNode):
             cls = box.cls.item()  # Klassenindex des Objekts
             pixels = box.xyxy[0]  # obere linke und untere rechte Pixelkoordinaten
 
-            # track_id = (
-            #    box.track_id if hasattr(box, "track_id") else None
-            # )  # Tracking-ID could be used
-
+            # only run distance calc when dist_array is available
+            # this if is needed because the lidar starts
+            # publishing with a delay
             if self.dist_arrays is None:
                 continue
 
@@ -514,6 +417,7 @@ class VisionNode(CompatibleNode):
                 # copy actual lidar points
                 obj_dist_min_x = self.min_x(dist_array=distances_copy)
                 obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
+
                 # absolut distance to object for visualization
                 abs_distance = np.sqrt(
                     obj_dist_min_x[0] ** 2
@@ -525,9 +429,6 @@ class VisionNode(CompatibleNode):
                 distance_output.append(float(cls))
                 distance_output.append(float(obj_dist_min_x[0]))
                 distance_output.append(float(obj_dist_min_abs_y[1]))
-                # Just publish markers with closest point to object. No calculating of
-                # the real object size atm
-                markers.markers.append(self.get_marker(obj_dist_min_x, i, cls))
 
             else:
                 # fallback values for bounding box if
@@ -539,10 +440,11 @@ class VisionNode(CompatibleNode):
             # add values for visualization
             c_boxes.append(torch.tensor(pixels))
             c_labels.append(
-                f"Class: {cls},"
-                f"Meters: {round(abs_distance, 2)},"
-                f"({round(float(obj_dist_min_x[0]), 2)},"
-                f"{round(float(obj_dist_min_abs_y[1]), 2)})"
+                f"Class: {get_carla_class_name(cls)}, "
+                f"Meters: {round(abs_distance, 2)}, "
+                f"TrackingId: {int(box.id)}, "
+                f"({round(float(obj_dist_min_x[0]), 2)}, "
+                f"{round(float(obj_dist_min_abs_y[1]), 2)})",
             )
             c_colors.append(get_carla_color(int(cls)))
 
@@ -559,7 +461,7 @@ class VisionNode(CompatibleNode):
 
         # draw bounding boxes and distance values on image
         c_boxes = torch.stack(c_boxes)
-        box_image = draw_bounding_boxes(
+        drawn_images = draw_bounding_boxes(
             image_np_with_detections,
             c_boxes,
             c_labels,
@@ -567,25 +469,21 @@ class VisionNode(CompatibleNode):
             width=3,
             font_size=12,
         )
-        scaled_masks_list = []
-        for i, mask in enumerate(masks.cpu().numpy()):
-            # probably need to cut something off here
-            scaled_masks_list.append(
-                cv2.resize(
-                    mask,
-                    (cv_image.shape[1], cv_image.shape[0]),
-                    interpolation=cv2.INTER_LINEAR,
-                ),
+        if masks is not None:
+            scaled_masks = np.squeeze(
+                scale_masks(masks.unsqueeze(1), cv_image.shape[:2], True).cpu().numpy(),
+                1,
             )
-        scaled_masks = np.array(scaled_masks_list)
-        mask_image = draw_segmentation_masks(
-            box_image, torch.from_numpy(scaled_masks > 0), alpha=0.6, colors=c_colors
-        )
-        np_box_img = np.transpose(mask_image.detach().numpy(), (1, 2, 0))
-        box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
-        # markers = self.get_markers(scaled_masks, self.dist_arrays)
 
-        return box_img
+            drawn_images = draw_segmentation_masks(
+                drawn_images,
+                torch.from_numpy(scaled_masks > 0),
+                alpha=0.6,
+                colors=c_colors,
+            )
+
+        np_image = np.transpose(drawn_images.detach().numpy(), (1, 2, 0))
+        return cv2.cvtColor(np_image, cv2.COLOR_BGR2RGB)
 
     def get_marker(self, point, id, obj_class):
         c_color = get_carla_color(int(obj_class))
