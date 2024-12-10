@@ -75,6 +75,14 @@ class position_heading_filter_debug_node(CompatibleNode):
         self.csv_heading_created = False
         self.csv_file_path_heading = ""
 
+        # parameters to make sure just new data gets saved
+        self.previous_heading = []
+        self.heading_to_write = []
+        self.previous_x_pos = []
+        self.x_pos_to_write = []
+        self.previous_y_pos = []
+        self.y_pos_to_write = []
+
         self.loginfo("Position Heading Filter Debug node started")
 
         # region Subscriber START
@@ -254,18 +262,20 @@ class position_heading_filter_debug_node(CompatibleNode):
                         "Current Error" "Test Filter Error",
                     ]
                 )
-            writer.writerow(
-                [
-                    rospy.get_time(),
-                    self.unfiltered_heading.data,
-                    self.carla_current_heading,
-                    self.current_heading.data,
-                    self.test_filter_heading.data,
-                    self.heading_debug_data.data[0],
-                    self.heading_debug_data.data[1],
-                    self.heading_debug_data.data[2],
-                ]
-            )
+
+            self.heading_to_write = [
+                rospy.get_time(),
+                self.unfiltered_heading.data,
+                self.carla_current_heading,
+                self.current_heading.data,
+                self.test_filter_heading.data,
+                self.heading_debug_data.data[0],
+                self.heading_debug_data.data[1],
+                self.heading_debug_data.data[2],
+            ]
+            if self.previous_heading != self.heading_to_write:
+                writer.writerow(self.heading_to_write)
+                self.previous_heading = self.heading_to_write
 
     def write_csv_x(self):
         with open(self.csv_file_path_x, "a", newline="") as file:
@@ -284,18 +294,20 @@ class position_heading_filter_debug_node(CompatibleNode):
                         "Test Filter Error",
                     ]
                 )
-            writer.writerow(
-                [
-                    rospy.get_time(),
-                    self.unfiltered_pos.pose.position.x,
-                    self.carla_current_pos.x,
-                    self.current_pos.pose.position.x,
-                    self.test_filter_pos.pose.position.x,
-                    self.position_debug_data.data[8],
-                    self.position_debug_data.data[11],
-                    self.position_debug_data.data[14],
-                ]
-            )
+
+            self.x_pos_to_write = [
+                rospy.get_time(),
+                self.unfiltered_pos.pose.position.x,
+                self.carla_current_pos.x,
+                self.current_pos.pose.position.x,
+                self.test_filter_pos.pose.position.x,
+                self.position_debug_data.data[8],
+                self.position_debug_data.data[11],
+                self.position_debug_data.data[14],
+            ]
+            if self.previous_x_pos != self.x_pos_to_write:
+                writer.writerow(self.x_pos_to_write)
+                self.previous_x_pos = self.x_pos_to_write
 
     def write_csv_y(self):
         with open(self.csv_file_path_y, "a", newline="") as file:
@@ -314,18 +326,20 @@ class position_heading_filter_debug_node(CompatibleNode):
                         "Test Filter Error",
                     ]
                 )
-            writer.writerow(
-                [
-                    rospy.get_time(),
-                    self.unfiltered_pos.pose.position.y,
-                    self.carla_current_pos.y,
-                    self.current_pos.pose.position.y,
-                    self.test_filter_pos.pose.position.y,
-                    self.position_debug_data.data[9],
-                    self.position_debug_data.data[12],
-                    self.position_debug_data.data[15],
-                ]
-            )
+
+            self.y_pos_to_write = [
+                rospy.get_time(),
+                self.unfiltered_pos.pose.position.y,
+                self.carla_current_pos.y,
+                self.current_pos.pose.position.y,
+                self.test_filter_pos.pose.position.y,
+                self.position_debug_data.data[9],
+                self.position_debug_data.data[12],
+                self.position_debug_data.data[15],
+            ]
+            if self.previous_y_pos != self.y_pos_to_write:
+                writer.writerow(self.y_pos_to_write)
+                self.previous_y_pos = self.y_pos_to_write
 
     # endregion CSV data save methods
 
