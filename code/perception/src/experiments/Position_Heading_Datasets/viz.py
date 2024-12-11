@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -738,13 +740,13 @@ def get_x_or_y_or_h_from_csv_file(file_name, type="x"):
 if __name__ == "__main__":
     # file_name can be changed by changing the FILE_NUM variable
     data = file_name
-    plot_CEP(data)
+    # plot_CEP(data)
 
-    plot_x_or_y_or_h_notched_box(data, type="x", error_type="MSE")
-    plot_x_or_y_or_h_notched_box(data, type="x", error_type="MAE")
+    # plot_x_or_y_or_h_notched_box(data, type="x", error_type="MSE")
+    # plot_x_or_y_or_h_notched_box(data, type="x", error_type="MAE")
 
-    plot_x_or_y_or_h_notched_box(data, type="y", error_type="MSE")
-    plot_x_or_y_or_h_notched_box(data, type="y", error_type="MAE")
+    # plot_x_or_y_or_h_notched_box(data, type="y", error_type="MSE")
+    # plot_x_or_y_or_h_notched_box(data, type="y", error_type="MAE")
 
     # plot_x_or_y_or_h_notched_box(data, type='h', error_type='MSE')
     # plot_x_or_y_or_h_notched_box(data, type='h', error_type='MAE')
@@ -753,7 +755,7 @@ if __name__ == "__main__":
     # plot_best_tuned_file_by_type(type='y',error_type='MSE',check_type='IQR')
     # plot_best_tuned_file_by_type(type='h',error_type='MSE',check_type='IQR')
 
-    # plot_csv_x_or_y(data, type='x')
+    plot_csv_x_or_y(data, type="x")
     # plot_csv_x_or_y(data, type='y')
     # plot_csv_heading(data)
     # plot_csv_positions(data)

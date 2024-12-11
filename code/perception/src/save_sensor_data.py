@@ -27,7 +27,7 @@ import threading
 import carla
 
 GPS_RUNNING_AVG_ARGS: int = 10
-DATA_SAVING_MAX_TIME: int = 45
+DATA_SAVING_MAX_TIME: int = 20
 FOLDER_PATH: str = "/Position_Heading_Datasets"
 
 
@@ -70,6 +70,9 @@ class SaveSensorData(CompatibleNode):
         self.vel_to_write = []
         self.gt_to_write = []
 
+        self.first_line_written = False
+        self.stop_saving_data = True
+
         # Subscriber
 
         self.position_subscriber = self.new_subscription(
@@ -102,6 +105,9 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the current position in a csv file
         """
+        if self.stop_saving_data == True:
+            return
+
         # Specify the path to the folder where you want to save the data
         base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
         folder_path = base_path + "/sensor_data"
@@ -121,7 +127,7 @@ class SaveSensorData(CompatibleNode):
         with open(self.sensor_data_csv_file_path, "a", newline="") as file:
             writer = csv.writer(file)
             # Check if file is empty and add first row
-            if os.stat(self.sensor_data_csv_file_path).st_size == 0:
+            if self.first_line_written == False:
                 writer.writerow(
                     [
                         "Time",
@@ -129,7 +135,8 @@ class SaveSensorData(CompatibleNode):
                         "pos x",
                         "pos y",
                         "pos z",
-                        "vel" "orientation x",
+                        "vel",
+                        "orientation x",
                         "orientation y",
                         "orientation z",
                         "orientation w",
@@ -138,6 +145,7 @@ class SaveSensorData(CompatibleNode):
                         "lin acc y",
                     ]
                 )
+                self.first_line_written = True
             self.time = rospy.get_time()
             self.pos_to_write = [
                 self.time,
@@ -166,6 +174,9 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the imu data in a csv file
         """
+        if self.stop_saving_data == True:
+            return
+
         # Specify the path to the folder where you want to save the data
         base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
         folder_path = base_path + "/sensor_data"
@@ -185,7 +196,7 @@ class SaveSensorData(CompatibleNode):
         with open(self.sensor_data_csv_file_path, "a", newline="") as file:
             writer = csv.writer(file)
             # Check if file is empty and add first row
-            if os.stat(self.sensor_data_csv_file_path).st_size == 0:
+            if self.first_line_written == False:
                 writer.writerow(
                     [
                         "Time",
@@ -193,7 +204,8 @@ class SaveSensorData(CompatibleNode):
                         "pos x",
                         "pos y",
                         "pos z",
-                        "vel" "orientation x",
+                        "vel",
+                        "orientation x",
                         "orientation y",
                         "orientation z",
                         "orientation w",
@@ -202,6 +214,7 @@ class SaveSensorData(CompatibleNode):
                         "lin acc y",
                     ]
                 )
+                self.first_line_written = True
             self.time = rospy.get_time()
             self.imu_to_write = [
                 self.time,
@@ -230,6 +243,9 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the velocity in a csv file
         """
+        if self.stop_saving_data == True:
+            return
+
         # Specify the path to the folder where you want to save the data
         base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
         folder_path = base_path + "/sensor_data"
@@ -249,7 +265,7 @@ class SaveSensorData(CompatibleNode):
         with open(self.sensor_data_csv_file_path, "a", newline="") as file:
             writer = csv.writer(file)
             # Check if file is empty and add first row
-            if os.stat(self.sensor_data_csv_file_path).st_size == 0:
+            if self.first_line_written == False:
                 writer.writerow(
                     [
                         "Time",
@@ -257,7 +273,8 @@ class SaveSensorData(CompatibleNode):
                         "pos x",
                         "pos y",
                         "pos z",
-                        "vel" "orientation x",
+                        "vel",
+                        "orientation x",
                         "orientation y",
                         "orientation z",
                         "orientation w",
@@ -266,6 +283,7 @@ class SaveSensorData(CompatibleNode):
                         "lin acc y",
                     ]
                 )
+                self.first_line_written = True
             self.time = rospy.get_time()
             self.vel_to_write = [
                 self.time,
@@ -294,6 +312,9 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the ground truth in a csv file
         """
+        if self.stop_saving_data == True:
+            return
+
         # Specify the path to the folder where you want to save the data
         base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
         folder_path = base_path + "/ground_truth"
@@ -318,7 +339,8 @@ class SaveSensorData(CompatibleNode):
                         "pos x",
                         "pos y",
                         "pos z",
-                        "vel" "heading",
+                        "vel",
+                        "heading",
                         "ang vel z",
                         "lin acc x",
                         "lin acc y",
@@ -329,7 +351,8 @@ class SaveSensorData(CompatibleNode):
             carla_pos.y = -carla_pos.y
 
             # velocity
-            carla_vel = self.carla_car.get_velocity()
+            carla_vel_vector = self.carla_car.get_velocity()
+            carla_vel = carla_vel_vector.x + carla_vel_vector.y + carla_vel_vector.z
 
             # orientation
             # carla_quat = quaternion_from_euler(
@@ -395,30 +418,35 @@ class SaveSensorData(CompatibleNode):
             Loop for the data saving
             """
             initialized = False
-            printed_message = False
-            now = 0
+            start_time = 0
+            finish_line_written = False
             while True:
-                # if carla_car still not found -> skip
-                if self.carla_car is None:
-                    # self.logwarn("""Carla Hero car still none!
-                    #              Can not record data for debug yet.""")
-                    for actor in self.world.get_actors():
-                        if actor.attributes.get("role_name") == "hero":
-                            self.carla_car = actor
-                            break
-                    continue
-
                 # save sensor data in csv files
                 if not initialized:
-                    now = rospy.get_time()
+                    self.loginfo("Start saving data")
+                    start_time = rospy.get_time()
                     initialized = True
-                if initialized and (rospy.get_time() - now) > DATA_SAVING_MAX_TIME:
-                    self.position_subscriber.unregister()
-                    self.imu_subscriber.unregister()
-                    self.velocity_subscriber.unregister()
-                if not printed_message:
-                    self.loginfo("Finished saving sensor data")
-                    printed_message = True
+                    self.stop_saving_data = False
+
+                if (
+                    initialized
+                    and (rospy.get_time() - start_time) <= DATA_SAVING_MAX_TIME
+                ):
+                    self.loginfo(
+                        f"{(rospy.get_time() - start_time): .2f}"
+                        + "s / "
+                        + str(DATA_SAVING_MAX_TIME)
+                        + "s"
+                    )
+
+                if (
+                    initialized
+                    and (rospy.get_time() - start_time) > DATA_SAVING_MAX_TIME
+                ):
+                    if finish_line_written == False:
+                        self.loginfo("Finished saving sensor data")
+                        finish_line_written = True
+                    self.stop_saving_data = True
 
                 rospy.sleep(int(self.control_loop_rate))
 
