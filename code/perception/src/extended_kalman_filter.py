@@ -445,9 +445,63 @@ class ExtendedKalmanFilter(CompatibleNode):
         nsec = time.clock.nsecs
         nsec /= 1000000000
         now = sec + nsec
+        line = []
         if (self.filter_ready is True) and (self.start_time_set is False):
             self.start_time = now
             self.start_time_set = True
+            line = self.read_file.readline().split(",")
+            self.data_start_time = float(line[0])
+
+        if (self.filter_ready is True) and (self.start_time_set is True):
+            simulated_time = now - self.start_time + self.data_start_time
+            if simulated_time >= float(line[0]):
+                if line[1] == "pos":
+                    position = PoseStamped()
+                    # position.header = Header()
+                    # position.header.stamp = simulated_time
+
+                    # Fill in the pose
+                    position.pose.position.x = float(line[2])
+                    position.pose.position.y = float(line[3])
+                    position.pose.position.z = float(line[4])
+
+                    # Assuming you have no orientation information
+                    position.pose.orientation.x = 0
+                    position.pose.orientation.y = 0
+                    position.pose.orientation.z = 0
+                    position.pose.orientation.w = 1
+
+                    self.update_position(position)
+
+                if line[1] == "imu":
+                    imu_message = Imu()
+                    # imu_message.header = Header()
+                    # imu_message.header.stamp = simulated_time
+
+                    imu_message.orientation.x = float(line[6])
+                    imu_message.orientation.y = float(line[7])
+                    imu_message.orientation.z = float(line[8])
+                    imu_message.orientation.w = float(line[9])
+
+                    imu_message.angular_velocity.z = float(line[10])
+
+                    imu_message.linear_acceleration.x = float(line[11])
+                    imu_message.linear_acceleration.y = float(line[12])
+
+                    self.update_imu_data(imu_message)
+
+                if line[1] == "speed":
+                    velocity = CarlaSpeedometer()
+
+                    velocity.speed = float(line[5])
+
+                    self.update_velocity(velocity)
+
+            line = self.read_file.readline()
+            if len(line) == 0:
+                return
+            else:
+                line = line.split(",")
 
 
 def main(args=None):
