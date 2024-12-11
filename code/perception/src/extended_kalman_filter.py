@@ -8,6 +8,8 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float32, UInt32
 from sensor_msgs.msg import Imu
 from carla_msgs.msg import CarlaSpeedometer
+from rosgraph_msgs.msg import Clock
+
 import rospy
 import math
 import threading
@@ -15,6 +17,15 @@ import threading
 from coordinate_transformation import quat_to_heading
 
 GPS_RUNNING_AVG_ARGS = 10
+
+READ_FROM_CSV_FILE: bool = True
+READ_FOLDER_PATH: str = (
+    "/workspace/code/perception/src/experiments/Position_Heading_Datasets/sensor_data"
+)
+WRITE_FOLDER_PATH: str = (
+    "/workspace/code/perception/src/experiments/filter_output_datasets"
+)
+FILE_NUM = "00"  # Change this to plot your wanted file
 
 """
 For more information take a look at the documentation:
@@ -106,51 +117,70 @@ class ExtendedKalmanFilter(CompatibleNode):
         # the measurement covariance matrix R
         self.R = np.diag([0.2, 0.2, 0.2, 0.2, 0.2, 0.2])
 
-        # SUBSCRIBER
+        if READ_FROM_CSV_FILE is False:
 
-        # set up the subscriber for the position
-        # -> unfiltered_pos publishes GPS data (lat/lon/alt) in x/y/z coordinates
-        self.avg_z = np.zeros((GPS_RUNNING_AVG_ARGS, 1))
-        self.avg_gps_counter: int = 0
-        self.position_subscriber = self.new_subscription(
-            PoseStamped,
-            "/paf/" + self.role_name + "/unfiltered_pos",
-            self.update_position,
-            qos_profile=1,
-        )
+            # SUBSCRIBER
 
-        # set up the subscriber for the IMU data
-        # (linear acceleration, orientation, angular velocity)
-        self.imu_subscriber = self.new_subscription(
-            Imu,
-            "/carla/" + self.role_name + "/IMU",
-            self.update_imu_data,
-            qos_profile=1,
-        )
+            # set up the subscriber for the position
+            # -> unfiltered_pos publishes GPS data (lat/lon/alt) in x/y/z coordinates
+            self.avg_z = np.zeros((GPS_RUNNING_AVG_ARGS, 1))
+            self.avg_gps_counter: int = 0
+            self.position_subscriber = self.new_subscription(
+                PoseStamped,
+                "/paf/" + self.role_name + "/unfiltered_pos",
+                self.update_position,
+                qos_profile=1,
+            )
 
-        # set up the subscriber for the velocity
-        self.velocity_subscriber = self.new_subscription(
-            CarlaSpeedometer,
-            "/carla/" + self.role_name + "/Speed",
-            self.update_velocity,
-            qos_profile=1,
-        )
+            # set up the subscriber for the IMU data
+            # (linear acceleration, orientation, angular velocity)
+            self.imu_subscriber = self.new_subscription(
+                Imu,
+                "/carla/" + self.role_name + "/IMU",
+                self.update_imu_data,
+                qos_profile=1,
+            )
 
-        # PUBLISHER
+            # set up the subscriber for the velocity
+            self.velocity_subscriber = self.new_subscription(
+                CarlaSpeedometer,
+                "/carla/" + self.role_name + "/Speed",
+                self.update_velocity,
+                qos_profile=1,
+            )
 
-        # set up the publisher for the position
-        self.ekf_position_publisher = self.new_publisher(
-            PoseStamped,
-            "/paf/" + self.role_name + "/extended_kalman_pos",
-            qos_profile=1,
-        )
+            # PUBLISHER
 
-        # set up the publisher for the heading
-        self.ekf_heading_publisher = self.new_publisher(
-            Float32,
-            "/paf/" + self.role_name + "/extended_kalman_heading",
-            qos_profile=1,
-        )
+            # set up the publisher for the position
+            self.ekf_position_publisher = self.new_publisher(
+                PoseStamped,
+                "/paf/" + self.role_name + "/extended_kalman_pos",
+                qos_profile=1,
+            )
+
+            # set up the publisher for the heading
+            self.ekf_heading_publisher = self.new_publisher(
+                Float32,
+                "/paf/" + self.role_name + "/extended_kalman_heading",
+                qos_profile=1,
+            )
+
+        else:
+            self.start_time = 0
+            self.start_time_set = False
+            self.filter_ready = False
+
+            self.read_file = open(
+                str(READ_FOLDER_PATH) + "/data_" + str(FILE_NUM) + ".csv", "r"
+            )
+            self.read_file.readline()  # first line not needed
+
+            self.clock_subscriber = self.new_subscription(
+                Clock,
+                "/clock/",
+                self.time_check,
+                qos_profile=1,
+            )
 
     def run(self):
         """
@@ -167,6 +197,8 @@ class ExtendedKalmanFilter(CompatibleNode):
             and self.ang_vel_initialized
         ):
             self.loginfo("Extended Kalman Filter is waiting for initialization")
+            if (READ_FROM_CSV_FILE is True) and (self.filter_ready is False):
+                self.filter_ready = True
             rospy.sleep(1)
         rospy.sleep(1)
 
@@ -407,6 +439,15 @@ class ExtendedKalmanFilter(CompatibleNode):
 
         if not self.vel_initialized:
             self.vel_initialized = True
+
+    def time_check(self, time):
+        sec = time.clock.secs
+        nsec = time.clock.nsecs
+        nsec /= 1000000000
+        now = sec + nsec
+        if (self.filter_ready is True) and (self.start_time_set is False):
+            self.start_time = now
+            self.start_time_set = True
 
 
 def main(args=None):
