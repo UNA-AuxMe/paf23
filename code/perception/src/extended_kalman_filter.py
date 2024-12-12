@@ -117,14 +117,15 @@ class ExtendedKalmanFilter(CompatibleNode):
         # the measurement covariance matrix R
         self.R = np.diag([0.2, 0.2, 0.2, 0.2, 0.2, 0.2])
 
+        # for rolling average (of z position)
+        self.avg_z = np.zeros((GPS_RUNNING_AVG_ARGS, 1))
+
         if READ_FROM_CSV_FILE is False:
 
             # SUBSCRIBER
 
             # set up the subscriber for the position
             # -> unfiltered_pos publishes GPS data (lat/lon/alt) in x/y/z coordinates
-            self.avg_z = np.zeros((GPS_RUNNING_AVG_ARGS, 1))
-            self.avg_gps_counter: int = 0
             self.position_subscriber = self.new_subscription(
                 PoseStamped,
                 "/paf/" + self.role_name + "/unfiltered_pos",
@@ -169,6 +170,7 @@ class ExtendedKalmanFilter(CompatibleNode):
             self.start_time = 0
             self.start_time_set = False
             self.filter_ready = False
+            self.input_line = []
 
             self.read_file = open(
                 str(READ_FOLDER_PATH) + "/data_" + str(FILE_NUM) + ".csv", "r"
@@ -227,6 +229,8 @@ class ExtendedKalmanFilter(CompatibleNode):
 
         self.P_corr = np.eye(6)
 
+        self.loginfo("Extended Kalman Filter is initialized")
+
         def loop():
             """
             Cycle of prediction and correction
@@ -238,9 +242,11 @@ class ExtendedKalmanFilter(CompatibleNode):
                 self.prediction()
                 self.correction()
 
-                # Publish the kalman-data:
-                self.publish_heading()
-                self.publish_position()
+                if READ_FROM_CSV_FILE is False:
+                    # Publish the ekf-data:
+                    self.publish_heading()
+                    self.publish_position()
+
                 rospy.sleep(self.control_loop_rate)
 
         threading.Thread(target=loop).start()
@@ -445,25 +451,25 @@ class ExtendedKalmanFilter(CompatibleNode):
         nsec = time.clock.nsecs
         nsec /= 1000000000
         now = sec + nsec
-        line = []
         if (self.filter_ready is True) and (self.start_time_set is False):
             self.start_time = now
             self.start_time_set = True
-            line = self.read_file.readline().split(",")
-            self.data_start_time = float(line[0])
+            self.input_line = self.read_file.readline().split(",")
+            self.input_line[-1] = self.input_line[-1].strip()
+            self.data_start_time = float(self.input_line[0])
 
         if (self.filter_ready is True) and (self.start_time_set is True):
             simulated_time = now - self.start_time + self.data_start_time
-            if simulated_time >= float(line[0]):
-                if line[1] == "pos":
+            if simulated_time >= float(self.input_line[0]):
+                if self.input_line[1] == "pos":
                     position = PoseStamped()
                     # position.header = Header()
                     # position.header.stamp = simulated_time
 
                     # Fill in the pose
-                    position.pose.position.x = float(line[2])
-                    position.pose.position.y = float(line[3])
-                    position.pose.position.z = float(line[4])
+                    position.pose.position.x = float(self.input_line[2])
+                    position.pose.position.y = float(self.input_line[3])
+                    position.pose.position.z = float(self.input_line[4])
 
                     # Assuming you have no orientation information
                     position.pose.orientation.x = 0
@@ -472,36 +478,40 @@ class ExtendedKalmanFilter(CompatibleNode):
                     position.pose.orientation.w = 1
 
                     self.update_position(position)
+                    print("updated position at simulated time " + str(simulated_time))
 
-                if line[1] == "imu":
+                if self.input_line[1] == "imu":
                     imu_message = Imu()
                     # imu_message.header = Header()
                     # imu_message.header.stamp = simulated_time
 
-                    imu_message.orientation.x = float(line[6])
-                    imu_message.orientation.y = float(line[7])
-                    imu_message.orientation.z = float(line[8])
-                    imu_message.orientation.w = float(line[9])
+                    imu_message.orientation.x = float(self.input_line[6])
+                    imu_message.orientation.y = float(self.input_line[7])
+                    imu_message.orientation.z = float(self.input_line[8])
+                    imu_message.orientation.w = float(self.input_line[9])
 
-                    imu_message.angular_velocity.z = float(line[10])
+                    imu_message.angular_velocity.z = float(self.input_line[10])
 
-                    imu_message.linear_acceleration.x = float(line[11])
-                    imu_message.linear_acceleration.y = float(line[12])
+                    imu_message.linear_acceleration.x = float(self.input_line[11])
+                    imu_message.linear_acceleration.y = float(self.input_line[12])
 
                     self.update_imu_data(imu_message)
+                    print("updated imu data at simulated time " + str(simulated_time))
 
-                if line[1] == "speed":
+                if self.input_line[1] == "speed":
                     velocity = CarlaSpeedometer()
 
-                    velocity.speed = float(line[5])
+                    velocity.speed = float(self.input_line[5])
 
                     self.update_velocity(velocity)
+                    print("updated velocity at simulated time " + str(simulated_time))
 
-            line = self.read_file.readline()
-            if len(line) == 0:
-                return
-            else:
-                line = line.split(",")
+                self.input_line = self.read_file.readline()
+                if len(self.input_line) == 0:
+                    return
+                else:
+                    self.input_line = self.input_line.split(",")
+                    self.input_line[-1] = self.input_line[-1].strip()
 
 
 def main(args=None):
