@@ -105,7 +105,7 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the current position in a csv file
         """
-        if self.stop_saving_data == True:
+        if self.stop_saving_data is True:
             return
 
         # Specify the path to the folder where you want to save the data
@@ -127,7 +127,7 @@ class SaveSensorData(CompatibleNode):
         with open(self.sensor_data_csv_file_path, "a", newline="") as file:
             writer = csv.writer(file)
             # Check if file is empty and add first row
-            if self.first_line_written == False:
+            if self.first_line_written is False:
                 writer.writerow(
                     [
                         "Time",
@@ -174,7 +174,7 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the imu data in a csv file
         """
-        if self.stop_saving_data == True:
+        if self.stop_saving_data is True:
             return
 
         # Specify the path to the folder where you want to save the data
@@ -196,7 +196,7 @@ class SaveSensorData(CompatibleNode):
         with open(self.sensor_data_csv_file_path, "a", newline="") as file:
             writer = csv.writer(file)
             # Check if file is empty and add first row
-            if self.first_line_written == False:
+            if self.first_line_written is False:
                 writer.writerow(
                     [
                         "Time",
@@ -243,7 +243,7 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the velocity in a csv file
         """
-        if self.stop_saving_data == True:
+        if self.stop_saving_data is True:
             return
 
         # Specify the path to the folder where you want to save the data
@@ -265,7 +265,7 @@ class SaveSensorData(CompatibleNode):
         with open(self.sensor_data_csv_file_path, "a", newline="") as file:
             writer = csv.writer(file)
             # Check if file is empty and add first row
-            if self.first_line_written == False:
+            if self.first_line_written is False:
                 writer.writerow(
                     [
                         "Time",
@@ -312,7 +312,7 @@ class SaveSensorData(CompatibleNode):
         """
         This method saves the ground truth in a csv file
         """
-        if self.stop_saving_data == True:
+        if self.stop_saving_data is True:
             return
 
         # Specify the path to the folder where you want to save the data
@@ -443,7 +443,7 @@ class SaveSensorData(CompatibleNode):
                     initialized
                     and (rospy.get_time() - start_time) > DATA_SAVING_MAX_TIME
                 ):
-                    if finish_line_written == False:
+                    if finish_line_written is False:
                         self.loginfo("Finished saving sensor data")
                         finish_line_written = True
                     self.stop_saving_data = True

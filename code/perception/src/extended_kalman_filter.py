@@ -14,6 +14,9 @@ import rospy
 import math
 import threading
 
+import os
+import csv
+
 from coordinate_transformation import quat_to_heading
 
 GPS_RUNNING_AVG_ARGS = 10
@@ -167,10 +170,18 @@ class ExtendedKalmanFilter(CompatibleNode):
             )
 
         else:
+            self.simulated_time = 0
+
             self.start_time = 0
             self.start_time_set = False
             self.filter_ready = False
             self.input_line = []
+
+            self.stop_saving_data = False
+            self.filter_output_csv_created = False
+            self.filter_output_csv_file_path = ""
+            self.previous_filter_output = []
+            self.filter_output_to_write = []
 
             self.read_file = open(
                 str(READ_FOLDER_PATH) + "/data_" + str(FILE_NUM) + ".csv", "r"
@@ -246,6 +257,9 @@ class ExtendedKalmanFilter(CompatibleNode):
                     # Publish the ekf-data:
                     self.publish_heading()
                     self.publish_position()
+                else:
+                    # Write the ekf-data into a csv file
+                    self.save_filter_output()
 
                 rospy.sleep(self.control_loop_rate)
 
@@ -447,6 +461,9 @@ class ExtendedKalmanFilter(CompatibleNode):
             self.vel_initialized = True
 
     def time_check(self, time):
+        if self.stop_saving_data is True:
+            return
+
         sec = time.clock.secs
         nsec = time.clock.nsecs
         nsec /= 1000000000
@@ -459,12 +476,12 @@ class ExtendedKalmanFilter(CompatibleNode):
             self.data_start_time = float(self.input_line[0])
 
         if (self.filter_ready is True) and (self.start_time_set is True):
-            simulated_time = now - self.start_time + self.data_start_time
-            while simulated_time >= float(self.input_line[0]):
+            self.simulated_time = now - self.start_time + self.data_start_time
+            while self.simulated_time >= float(self.input_line[0]):
                 if self.input_line[1] == "pos":
                     position = PoseStamped()
                     # position.header = Header()
-                    # position.header.stamp = simulated_time
+                    # position.header.stamp = self.simulated_time
 
                     # Fill in the pose
                     position.pose.position.x = float(self.input_line[2])
@@ -478,12 +495,14 @@ class ExtendedKalmanFilter(CompatibleNode):
                     position.pose.orientation.w = 1
 
                     self.update_position(position)
-                    print("updated position at simulated time " + str(simulated_time))
+                    print(
+                        "updated position at simulated time " + str(self.simulated_time)
+                    )
 
                 if self.input_line[1] == "imu":
                     imu_message = Imu()
                     # imu_message.header = Header()
-                    # imu_message.header.stamp = simulated_time
+                    # imu_message.header.stamp = self.simulated_time
 
                     imu_message.orientation.x = float(self.input_line[6])
                     imu_message.orientation.y = float(self.input_line[7])
@@ -496,7 +515,9 @@ class ExtendedKalmanFilter(CompatibleNode):
                     imu_message.linear_acceleration.y = float(self.input_line[12])
 
                     self.update_imu_data(imu_message)
-                    print("updated imu data at simulated time " + str(simulated_time))
+                    print(
+                        "updated imu data at simulated time " + str(self.simulated_time)
+                    )
 
                 if self.input_line[1] == "speed":
                     velocity = CarlaSpeedometer()
@@ -504,14 +525,81 @@ class ExtendedKalmanFilter(CompatibleNode):
                     velocity.speed = float(self.input_line[5])
 
                     self.update_velocity(velocity)
-                    print("updated velocity at simulated time " + str(simulated_time))
+                    print(
+                        "updated velocity at simulated time " + str(self.simulated_time)
+                    )
 
                 self.input_line = self.read_file.readline()
                 if len(self.input_line) == 0:
+                    self.stop_saving_data = True
+                    self.loginfo("Extended Kalman Filter stopped saving filter output")
                     return
                 else:
                     self.input_line = self.input_line.split(",")
                     self.input_line[-1] = self.input_line[-1].strip()
+
+    def save_filter_output(self):
+        if self.stop_saving_data is True:
+            return
+
+        os.makedirs(WRITE_FOLDER_PATH, exist_ok=True)
+
+        # Create the csv files ONCE if it does not exist
+        if self.filter_output_csv_created is False:
+            self.filter_output_csv_file_path = create_file(WRITE_FOLDER_PATH)
+            self.filter_output_csv_created = True
+
+        self.write_csv_filter_output()
+
+    def write_csv_filter_output(self):
+        with open(self.filter_output_csv_file_path, "a", newline="") as file:
+            writer = csv.writer(file)
+            # Check if file is empty and add first row
+            if os.stat(self.filter_output_csv_file_path).st_size == 0:
+                writer.writerow(
+                    [
+                        "Time",
+                        "pos x",
+                        "pos y",
+                        "pos z",
+                        "heading",
+                    ]
+                )
+
+            time = self.simulated_time
+
+            ekf_position_x = self.state_vector_corr[0]
+            ekf_position_y = self.state_vector_corr[1]
+            ekf_position_z = float(self.z_pos_m)
+
+            ekf_heading = self.state_vector_corr[4]
+
+            self.filter_output_to_write = [
+                time,
+                ekf_position_x,  # pos
+                ekf_position_y,
+                ekf_position_z,
+                ekf_heading,  # heading
+            ]
+            if self.previous_filter_output != self.filter_output_to_write:
+                writer.writerow(self.filter_output_to_write)
+                self.previous_filter_output = self.filter_output_to_write
+
+
+def create_file(folder_path):
+    """
+    This function creates a new csv file in the folder_path
+    in correct sequence looking like data_00.csv, data_01.csv, ...
+    and returns the path to the file.
+    """
+    i = 0
+    while True:
+        file_path = f"{folder_path}/data_{str(i).zfill(2)}.csv"
+        if not os.path.exists(file_path):
+            with open(file_path, "w", newline=""):
+                pass
+            return file_path
+        i += 1
 
 
 def main(args=None):
