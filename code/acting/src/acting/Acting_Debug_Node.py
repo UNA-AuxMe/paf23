@@ -49,7 +49,7 @@ FIXED_STEERING: float = 0  # if fixed steering needed
 TARGET_VELOCITY_1: float = 10  # standard velocity
 TARGET_VELOCITY_2: float = 0  # second velocity to switch to
 # 0 = Straight ; 1 = Curve ; 2 = SineWave ; 3 = Overtake
-TRAJECTORY_TYPE = 3
+TRAJECTORY_TYPE = 0
 
 # This Component also prints collected data to the terminal,
 # if wanted. Use the following Variables to select what to print.
@@ -189,7 +189,7 @@ class Acting_Debug_Node(CompatibleNode):
         # This parameter might needs adustment
         self.z_visual = 0
 
-        # Generate Trajectory as selected in TRAJECTORY_TYPE
+        # Generate Trajectory as selected in TRAJECTroutes_simpleORY_TYPE
         self.path_msg = Path()
         self.path_msg.header.stamp = rospy.Time.now()
         self.path_msg.header.frame_id = "global"
@@ -197,7 +197,7 @@ class Acting_Debug_Node(CompatibleNode):
         startx = 984.5
         starty = -5442.0
         if TRAJECTORY_TYPE == 0:  # Straight trajectory
-            self.current_trajectory = [(startx, starty), (startx, starty - 200)]
+            self.current_trajectory = [(startx, starty), (startx, starty + 200)]
 
         elif TRAJECTORY_TYPE == 1:  # straight into 90° Curve
             self.current_trajectory = [
@@ -231,7 +231,7 @@ class Acting_Debug_Node(CompatibleNode):
             # sine wave swings around this later
             trajectory_wave = [(startx, traj_y)]
             for traj_x in x_wave:
-                traj_y -= 2
+                traj_y += 2
                 trajectory_wave.append((traj_x, traj_y))
             # back to the middle of the road
             trajectory_wave.append((startx, traj_y - 2))

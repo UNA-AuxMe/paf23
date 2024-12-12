@@ -1,0 +1,15 @@
+# compose file for the development environment
+# routes_simple.xml
+include:
+  - docker-compose.linter.yaml
+  - roscore_service.yaml
+  - docker-compose.carla-simulator.yaml
+
+services:
+  agent:
+    extends:
+      file: agent_service.yaml
+      service: agent
+    environment:
+      - ROUTE=/workspace/code/routes/routes_simple.xml
+    command: bash -c "sleep 10 && roslaunch agent/launch/dev.launch"
