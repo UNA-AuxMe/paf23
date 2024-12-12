@@ -460,7 +460,7 @@ class ExtendedKalmanFilter(CompatibleNode):
 
         if (self.filter_ready is True) and (self.start_time_set is True):
             simulated_time = now - self.start_time + self.data_start_time
-            if simulated_time >= float(self.input_line[0]):
+            while simulated_time >= float(self.input_line[0]):
                 if self.input_line[1] == "pos":
                     position = PoseStamped()
                     # position.header = Header()
