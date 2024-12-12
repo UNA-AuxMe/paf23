@@ -986,7 +986,7 @@ class OpenDriveConverter:
             :return: direction: True or False if the agent is on the right
                                 side of the reference line or not
         """
-        direction = True
+        direction = False
         x_start = points[0][0]
         y_start = points[1][0]
         x_follow = points[0][1]
@@ -1003,7 +1003,7 @@ class OpenDriveConverter:
         dist_1 = help_functions.euclid_dist(point1, agent)
         dist_2 = help_functions.euclid_dist(point2, agent)
         if dist_1 > dist_2:
-            direction = False
+            direction = True
         return direction
 
     def update_one_point(
