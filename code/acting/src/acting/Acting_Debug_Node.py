@@ -46,10 +46,10 @@ Triggers emergency break after 15 Seconds
 """
 TEST_TYPE = 2
 FIXED_STEERING: float = 0  # if fixed steering needed
-TARGET_VELOCITY_1: float = 10  # standard velocity
+TARGET_VELOCITY_1: float = -10  # standard velocity
 TARGET_VELOCITY_2: float = 0  # second velocity to switch to
 # 0 = Straight ; 1 = Curve ; 2 = SineWave ; 3 = Overtake
-TRAJECTORY_TYPE = 0
+TRAJECTORY_TYPE = 2
 
 # This Component also prints collected data to the terminal,
 # if wanted. Use the following Variables to select what to print.
@@ -234,9 +234,9 @@ class Acting_Debug_Node(CompatibleNode):
                 traj_y += 2
                 trajectory_wave.append((traj_x, traj_y))
             # back to the middle of the road
-            trajectory_wave.append((startx, traj_y - 2))
+            trajectory_wave.append((startx, traj_y + 2))
             # add a long straight path after the serpentines
-            trajectory_wave.append((startx, starty - 200))
+            # trajectory_wave.append((startx, starty - 200))
             self.current_trajectory = trajectory_wave
 
         elif TRAJECTORY_TYPE == 3:  # 2 Lane Switches

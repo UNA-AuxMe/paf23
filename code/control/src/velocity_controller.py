@@ -58,7 +58,7 @@ class VelocityController(CompatibleNode):
         self.loginfo("VelocityController node running")
         # PID for throttle
         pid_t = PID(0.60, 0.00076, 0.63)
-        # since we use this for braking aswell, allow -1 to 0.
+        # since we use this for braking aswell, allow -1 to 1.
         pid_t.output_limits = (-1.0, 1.0)
 
         def loop(timer_event=None):
@@ -88,20 +88,23 @@ class VelocityController(CompatibleNode):
             if self.__target_velocity < 0:
                 # self.logerr("VelocityController doesn't support backward "
                 #             "driving yet.")
-                if self.__target_velocity <= -3:
-                    #  -3 is the signal for reverse driving
-                    reverse = True
-                    v = self.__target_velocity
-                    pid_t.setpoint = v
-                    throttle = pid_t(self.__current_velocity)
-                    brake = 0
-                    rospy.loginfo("VelocityController: reverse driving")
+                # if self.__target_velocity <= -3:
+                #  -3 is the signal for reverse driving
+                reverse = True
+                rospy.loginfo(pid_t(abs(self.__current_velocity)))
+                # v = self.__target_velocity
+                # use 1.39 m/s (=5km/h) for reverse driving
+                v = 1.39
+                pid_t.setpoint = v
+                throttle = pid_t(abs(self.__current_velocity))
+                brake = 0
+                rospy.loginfo("VelocityController: reverse driving")
 
-                else:
-                    #  other negative values only lead to braking
-                    reverse = False
-                    brake = 1
-                    throttle = 0
+            # else:
+            #  other negative values only lead to braking
+            # reverse = False
+            # brake = 1
+            # throttle = 0
 
             # very low target_velocities -> stand
             elif self.__target_velocity < 1:
@@ -132,7 +135,7 @@ class VelocityController(CompatibleNode):
         self.__current_velocity = float(data.speed)
 
     def __get_target_velocity(self, data: Float32):
-        self.__target_velocity = (float(data.data) * (-1)) - 3
+        self.__target_velocity = float(data.data)
 
 
 def main(args=None):
