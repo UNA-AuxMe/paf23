@@ -21,6 +21,10 @@
         <arg name="role_name" value="$(arg role_name)"/>
     </include>
 
+    <!-- acting -->
+    <include file="$(find mapping_visualization)/launch/visualization.launch">
+    </include>
+
     <!-- debugging -->
     <include file="$(find debugging)/launch/debugging.launch">
     </include>
