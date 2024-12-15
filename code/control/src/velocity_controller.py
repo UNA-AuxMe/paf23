@@ -119,9 +119,9 @@ class VelocityController(CompatibleNode):
                 else:
                     brake = 0
 
-            self.reverse_pub.publish(reverse)
-            self.brake_pub.publish(brake)
-            self.throttle_pub.publish(throttle)
+            # self.reverse_pub.publish(reverse)
+            # self.brake_pub.publish(brake)
+            # self.throttle_pub.publish(throttle)
 
         self.new_timer(self.control_loop_rate, loop)
         self.spin()

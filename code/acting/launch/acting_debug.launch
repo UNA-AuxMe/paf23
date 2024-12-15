@@ -11,10 +11,10 @@ This launch file starts acting as well as the debug node.
         <arg name="role_name" value="$(arg role_name)"/>
     </include>
     
-    <node pkg="acting" type="Acting_Debug_Node.py" name="Acting_Debug_Node" output="screen">
+    <!--<node pkg="acting" type="LaneFollower.py" name="LaneFollower" output="screen">
         <param name="control_loop_rate" value="$(arg control_loop_rate)"  />
         <param name="role_name" value="$(arg role_name)" />
-    </node>
+    </node>-->
 
 
     <node pkg="perception" type="kalman_filter.py" name="kalman_filter_node" output="screen">
@@ -35,6 +35,12 @@ This launch file starts acting as well as the debug node.
         <node pkg="rqt_plot" type="rqt_plot" output="screen" name="velocity_test" 
             args="/carla/hero/Speed /paf/hero/target_velocity /paf/hero/throttle /paf/hero/brake"/>
     </group>
+
+    <node pkg="perception" type="opencv_lane_detection.py" name="LaneDetection" output="screen">
+    </node>
+
+    <node pkg="perception" type="lidar_distance.py" name="LidarDistance" output="screen">
+    </node>
 
     <node type="rviz" name="rviz" pkg="rviz" args="-d $(find agent)/config/rviz_config.rviz" />
 </launch>
