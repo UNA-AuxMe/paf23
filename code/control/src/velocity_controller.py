@@ -118,7 +118,6 @@ class VelocityController(CompatibleNode):
                     throttle = 0
                 else:
                     brake = 0
-
             self.reverse_pub.publish(reverse)
             self.brake_pub.publish(brake)
             self.throttle_pub.publish(throttle)

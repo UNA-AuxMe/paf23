@@ -1,0 +1,8 @@
+<launch>
+    <include file="$(find control)/launch/control.launch">
+    </include>
+   
+    <node pkg="sim" type="car_sim.py" name="car_sim" output="screen" />
+    
+    <node pkg="potential_field" type="p_field_planner.py" name="pot_planner" output="screen" />
+</launch>
