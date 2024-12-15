@@ -1,0 +1,26 @@
+DWAPlannerROS:
+  max_vel_x: 0.5            # Maximum forward velocity (m/s)
+  min_vel_x: 0.1            # Minimum forward velocity (m/s)
+  max_vel_theta: 1.0        # Maximum angular velocity (rad/s)
+  min_vel_theta: -1.0       # Minimum angular velocity (rad/s)
+  acc_lim_x: 2.5            # Maximum linear acceleration (m/s^2)
+  acc_lim_theta: 3.2        # Maximum angular acceleration (rad/s^2)
+
+  # Robot's physical constraints
+  holonomic_robot: false    # Set to true if the robot can move sideways
+  vx_samples: 20            # Number of samples for linear velocity
+  vtheta_samples: 20        # Number of samples for angular velocity
+  sim_time: 1             # Time to simulate trajectories (seconds)
+
+  # Scoring weights
+  path_distance_bias: 32.0  # Weight for staying close to the global path
+  goal_distance_bias: 24.0  # Weight for moving towards the goal
+  occdist_scale: 0.01       # Weight for obstacle avoidance
+
+  # Obstacle avoidance
+  pdist_scale: 0.6
+  gdist_scale: 0.8
+  forward_point_distance: 0.325
+
+
+

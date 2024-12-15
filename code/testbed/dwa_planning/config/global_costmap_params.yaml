@@ -1,0 +1,5 @@
+global_costmap:
+  global_frame: world
+  robot_base_frame: car_base
+  update_frequency: 0.25
+  static_map: true
