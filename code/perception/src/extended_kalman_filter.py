@@ -21,7 +21,7 @@ from coordinate_transformation import quat_to_heading
 
 GPS_RUNNING_AVG_ARGS = 10
 
-READ_FROM_CSV_FILE: bool = False
+READ_FROM_CSV_FILE: bool = True
 READ_FOLDER_PATH: str = (
     "/workspace/code/perception/src/experiments/Position_Heading_Datasets/sensor_data"
 )
@@ -70,6 +70,9 @@ class ExtendedKalmanFilter(CompatibleNode):
         self.publish_seq = UInt32(0)
         self.frame_id = "map"
 
+        self.now = 0
+        self.previous_time = 0
+        self.current_time = 0
         self.dt = self.control_loop_rate
 
         # the state vector is of the following form:
@@ -150,6 +153,13 @@ class ExtendedKalmanFilter(CompatibleNode):
                 CarlaSpeedometer,
                 "/carla/" + self.role_name + "/Speed",
                 self.update_velocity,
+                qos_profile=1,
+            )
+
+            self.clock_subscriber = self.new_subscription(
+                Clock,
+                "/clock/",
+                self.get_time,
                 qos_profile=1,
             )
 
@@ -250,6 +260,8 @@ class ExtendedKalmanFilter(CompatibleNode):
             """
             self.loginfo("Extended Kalman Filter started its loop")
             while True:
+                self.current_time = self.now
+                self.dt = self.current_time - self.previous_time
                 self.prediction()
                 self.correction()
 
@@ -261,6 +273,7 @@ class ExtendedKalmanFilter(CompatibleNode):
                     # Write the ekf-data into a csv file
                     self.save_filter_output()
 
+                self.previous_time = self.current_time
                 rospy.sleep(self.control_loop_rate)
 
         threading.Thread(target=loop).start()
@@ -467,6 +480,11 @@ class ExtendedKalmanFilter(CompatibleNode):
         sec = time.clock.secs
         nsec = time.clock.nsecs
         nsec /= 1000000000
+
+        self.now = sec + nsec
+        if self.previous_time == 0:
+            self.previous_time = self.now
+
         now = sec + nsec
         if (self.filter_ready is True) and (self.start_time_set is False):
             self.start_time = now
@@ -537,6 +555,14 @@ class ExtendedKalmanFilter(CompatibleNode):
                 else:
                     self.input_line = self.input_line.split(",")
                     self.input_line[-1] = self.input_line[-1].strip()
+
+    def get_time(self, time):
+        sec = time.clock.secs
+        nsec = time.clock.nsecs
+        nsec /= 1000000000
+        self.now = sec + nsec
+        if self.previous_time == 0:
+            self.previous_time = self.now
 
     def save_filter_output(self):
         if self.stop_saving_data is True:
