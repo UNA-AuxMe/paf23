@@ -66,7 +66,7 @@ class ExtendedKalmanFilter(CompatibleNode):
 
         # basic info
         self.role_name = self.get_param("role_name", "hero")
-        self.control_loop_rate = self.get_param("control_loop_rate", "0.1")
+        self.control_loop_rate = 0.05
         self.publish_seq = UInt32(0)
         self.frame_id = "map"
 

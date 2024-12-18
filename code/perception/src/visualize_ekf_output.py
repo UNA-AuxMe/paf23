@@ -5,7 +5,7 @@ import coordinate_transformation
 
 # open a filter output file
 FILTER_FILE_NAME_START = "00"
-FILTER_FILE_NAME_END = "09"
+FILTER_FILE_NAME_END = "11"
 filter_files = []
 for i in range(int(FILTER_FILE_NAME_START), int(FILTER_FILE_NAME_END) + 1):
     if i < 10:
@@ -206,7 +206,7 @@ for line in imu_lines:
 
 def plot_x_position():
     for i in range(len(filter_datasets)):
-        if i >= 1 and i <= 8:
+        if i >= 1 and i <= 9:
             continue
         if i < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
