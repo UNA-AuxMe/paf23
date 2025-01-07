@@ -15,6 +15,11 @@
         <param name="role_name" value="$(arg role_name)" />
     </node>
 
+    <node pkg="acting" type="obstacle_extraction.py" name="ActingObstacleDetection" output="screen">
+        <param name="role_name" value="$(arg role_name)" />
+        <param name="control_loop_rate" value="$(arg control_loop_rate)" />
+    </node>
+
     <include file="$(find control)/launch/control.launch">
         <arg name="control_loop_rate" value="$(arg control_loop_rate)" />
     </include>
