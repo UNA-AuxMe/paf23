@@ -514,7 +514,7 @@ class VisionNode(CompatibleNode):
         indices = np.asarray([indices]) if indices.size == 1 else indices
 
         max_y = 360  # middle of image
-        min_prob = 0.30
+        min_prob = 0.20
 
         for index in indices:
             box = prediction.boxes.cpu().data.numpy()[index]
