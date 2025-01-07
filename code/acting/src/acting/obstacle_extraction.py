@@ -2,6 +2,9 @@
 import ros_compatibility as roscomp
 from ros_compatibility.node import CompatibleNode
 from mapping.msg import Map as MapMsg
+from mapping.msg import Entity
+from std_msgs.msg import String
+from rospy import Publisher
 
 
 class ObstacleDetection(CompatibleNode):
@@ -26,8 +29,12 @@ class ObstacleDetection(CompatibleNode):
             qos_profile=1,
         )
 
-    def map_callback(self, data: MapMsg):
-        a = 1 + 1
+        self.entity_publisher: Publisher = self.new_publisher(
+            Entity, "/test_entity", qos_profile=1
+        )
+
+    def map_callback(self, data):
+        self.entity_publisher.publish(data.entities[0])
 
 
 def main(args=None):
