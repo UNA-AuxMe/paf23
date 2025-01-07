@@ -45,6 +45,16 @@ class RadarNode:
             PointCloud2,
             self.callback,
         )
+        rospy.Subscriber(
+            rospy.get_param("~source_topic", "/carla/hero/RADAR2"),
+            PointCloud2,
+            self.callback,
+        )
+        rospy.Subscriber(
+            rospy.get_param("~source_topic", "/carla/hero/RADAR3"),
+            PointCloud2,
+            self.callback,
+        )
 
         rospy.spin()
 
