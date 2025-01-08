@@ -2,10 +2,18 @@
 
 import matplotlib.pyplot as plt
 import coordinate_transformation
+from math import pi
 
-# open a filter output file
 FILTER_FILE_NAME_START = "00"
 FILTER_FILE_NAME_END = "11"
+
+# a range of filters you would NOT like to see in the plots
+# can be defined here
+exclude_start = 1
+exclude_end = 9
+
+# open several filter output files
+# -> from data_<FILTER_FILE_NAME_START> to data_<FILTER_FILE_NAME_END>
 filter_files = []
 for i in range(int(FILTER_FILE_NAME_START), int(FILTER_FILE_NAME_END) + 1):
     if i < 10:
@@ -191,7 +199,9 @@ for filter in filter_datasets:
 
 gt_headings = []
 for line in gt_lines:
-    gt_headings.append(line[5])
+    heading_in_degrees = line[5]
+    heading_in_rad = heading_in_degrees * pi / 180.0
+    gt_headings.append(heading_in_rad)
 
 sensor_headings = []
 for line in imu_lines:
@@ -226,7 +236,19 @@ def plot_x_position():
 
 
 def plot_y_position():
-    plt.plot(filter_time_stamps, filter_y_positions, label="ekf y position")
+    for i in range(len(filter_datasets)):
+        if i >= 1 and i <= 9:
+            continue
+        if i < 10:
+            filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
+        else:
+            filter_file_nr = str(i + int(FILTER_FILE_NAME_START))
+        label = "ekf y position " + filter_file_nr
+        plt.plot(
+            filter_time_dataset[i],
+            filter_y_pos_dataset[i],
+            label=label,
+        )
     plt.plot(gt_time_stamps, gt_y_positions, label="gt y positions")
     plt.plot(sensor_pos_time_stamps, sensor_y_positions, label="sensor y positions")
     plt.plot()
@@ -235,7 +257,19 @@ def plot_y_position():
 
 
 def plot_z_position():
-    plt.plot(filter_time_stamps, filter_z_positions, label="ekf z position")
+    for i in range(len(filter_datasets)):
+        if i >= 1 and i <= 9:
+            continue
+        if i < 10:
+            filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
+        else:
+            filter_file_nr = str(i + int(FILTER_FILE_NAME_START))
+        label = "ekf z position " + filter_file_nr
+        plt.plot(
+            filter_time_dataset[i],
+            filter_z_pos_dataset[i],
+            label=label,
+        )
     plt.plot(gt_time_stamps, gt_z_positions, label="gt z positions")
     plt.plot(sensor_pos_time_stamps, sensor_z_positions, label="sensor z positions")
     plt.plot()
@@ -244,7 +278,19 @@ def plot_z_position():
 
 
 def plot_heading():
-    plt.plot(filter_time_stamps, filter_headings, label="ekf heading")
+    for i in range(len(filter_datasets)):
+        if i >= 1 and i <= 9:
+            continue
+        if i < 10:
+            filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
+        else:
+            filter_file_nr = str(i + int(FILTER_FILE_NAME_START))
+        label = "ekf heading " + filter_file_nr
+        plt.plot(
+            filter_time_dataset[i],
+            filter_heading_dataset[i],
+            label=label,
+        )
     plt.plot(gt_time_stamps, gt_headings, label="gt heading")
     plt.plot(sensor_imu_time_stamps, sensor_headings, label="sensor headings")
     plt.plot()
@@ -252,4 +298,4 @@ def plot_heading():
     plt.show()
 
 
-plot_x_position()
+plot_heading()
