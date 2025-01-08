@@ -21,7 +21,7 @@ from coordinate_transformation import quat_to_heading
 
 GPS_RUNNING_AVG_ARGS = 10
 
-READ_FROM_CSV_FILE: bool = True
+READ_FROM_CSV_FILE: bool = False
 READ_FOLDER_PATH: str = (
     "/workspace/code/perception/src/experiments/Position_Heading_Datasets/sensor_data"
 )
