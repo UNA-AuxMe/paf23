@@ -5,11 +5,10 @@ The document contains an overview over all [nodes](#overview) and [topics](#topi
 
 - [Overview](#overview)
 - [Perception](#perception)
-  - [Vision Node](#vision-node)
+  - [Obstacle Detection and Classification](#obstacle-detection-and-classification)
   - [Traffic Light Detection](#traffic-light-detection)
-  - [Position Heading Node](#position-heading-node)
-  - [Distance to Objects](#distance-to-objects)
   - [Localization](#localization)
+  - [Lane Detection](#lane-detection)
 - [Planning](#planning)
   - [Global Planning](#global-planning)
   - [Decision Making](#decision-making)
@@ -120,6 +119,19 @@ Publishes:
 
 - ```ego_position``` ([nav_msgs/Odometry Message](http://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html))
 
+### Lane Detection
+
+Provides a mask and an image where the lane is drawn in.
+
+Subscriptions:
+
+- ```rgb_camera``` ([sensor_msgs/Image](https://docs.ros.org/en/api/sensor_msgs/html/msg/Image.html))
+
+Publishes:
+
+- ```lane_detection_mask``` ([sensor_msgs/Image](https://docs.ros.org/en/api/sensor_msgs/html/msg/Image.html))
+- ```lane_detection_image``` ([sensor_msgs/Image](https://docs.ros.org/en/api/sensor_msgs/html/msg/Image.html))
+  
 ## Planning
 
 The planning uses the data from the [Perception](#Perception) to find a path on which the ego vehicle can safely reach
