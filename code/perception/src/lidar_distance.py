@@ -22,15 +22,98 @@ class LidarDistance:
         self.cluster_buffer = []
 
     def callback(self, data):
-        """
-        Callback function that processes LiDAR point cloud data.
+        """Callback function, filters a PontCloud2 message
+            by restrictions defined in the launchfile.
 
-        Executes clustering and image calculations for the provided point cloud.
+            Publishes a Depth image for the specified camera angle.
+            Each angle has do be delt with differently since the signs of the
+            coordinate system change with the view angle.
 
-        :param data: LiDAR point cloud as a ROS PointCloud2 message.
+        :param data: a PointCloud2
         """
-        self.start_clustering(data)
-        self.start_image_calculation(data)
+        coordinates = ros_numpy.point_cloud2.pointcloud2_to_array(data)
+
+        # Center
+        reconstruct_bit_mask_center = lidar_filter_utility.bounding_box(
+            coordinates, max_x=np.inf, min_x=0.0, min_z=-np.inf
+        )
+        reconstruct_coordinates_center = coordinates[reconstruct_bit_mask_center]
+        reconstruct_coordinates_xyz_center = np.array(
+            lidar_filter_utility.remove_field_name(
+                reconstruct_coordinates_center, "intensity"
+            ).tolist()
+        )
+        dist_array_center = self.reconstruct_img_from_lidar(
+            reconstruct_coordinates_xyz_center, focus="Center"
+        )
+        dist_array_center_msg = self.bridge.cv2_to_imgmsg(
+            dist_array_center, encoding="passthrough"
+        )
+        dist_array_center_msg.header = data.header
+        self.dist_array_center_publisher.publish(dist_array_center_msg)
+
+        # Back
+        reconstruct_bit_mask_back = lidar_filter_utility.bounding_box(
+            coordinates,
+            max_x=0.0,
+            min_x=-np.inf,
+            min_z=-1.6,
+        )
+        reconstruct_coordinates_back = coordinates[reconstruct_bit_mask_back]
+        reconstruct_coordinates_xyz_back = np.array(
+            lidar_filter_utility.remove_field_name(
+                reconstruct_coordinates_back, "intensity"
+            ).tolist()
+        )
+        dist_array_back = self.reconstruct_img_from_lidar(
+            reconstruct_coordinates_xyz_back, focus="Back"
+        )
+        dist_array_back_msg = self.bridge.cv2_to_imgmsg(
+            dist_array_back, encoding="passthrough"
+        )
+        dist_array_back_msg.header = data.header
+        self.dist_array_back_publisher.publish(dist_array_back_msg)
+
+        # Left
+        reconstruct_bit_mask_left = lidar_filter_utility.bounding_box(
+            coordinates,
+            max_y=np.inf,
+            min_y=0.0,
+            min_z=-1.6,
+        )
+        reconstruct_coordinates_left = coordinates[reconstruct_bit_mask_left]
+        reconstruct_coordinates_xyz_left = np.array(
+            lidar_filter_utility.remove_field_name(
+                reconstruct_coordinates_left, "intensity"
+            ).tolist()
+        )
+        dist_array_left = self.reconstruct_img_from_lidar(
+            reconstruct_coordinates_xyz_left, focus="Left"
+        )
+        dist_array_left_msg = self.bridge.cv2_to_imgmsg(
+            dist_array_left, encoding="passthrough"
+        )
+        dist_array_left_msg.header = data.header
+        self.dist_array_left_publisher.publish(dist_array_left_msg)
+
+        # Right
+        reconstruct_bit_mask_right = lidar_filter_utility.bounding_box(
+            coordinates, max_y=-0.0, min_y=-np.inf, min_z=-1.6
+        )
+        reconstruct_coordinates_right = coordinates[reconstruct_bit_mask_right]
+        reconstruct_coordinates_xyz_right = np.array(
+            lidar_filter_utility.remove_field_name(
+                reconstruct_coordinates_right, "intensity"
+            ).tolist()
+        )
+        dist_array_right = self.reconstruct_img_from_lidar(
+            reconstruct_coordinates_xyz_right, focus="Right"
+        )
+        dist_array_right_msg = self.bridge.cv2_to_imgmsg(
+            dist_array_right, encoding="passthrough"
+        )
+        dist_array_right_msg.header = data.header
+        self.dist_array_right_publisher.publish(dist_array_right_msg)
 
     def listener(self):
         """
