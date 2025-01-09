@@ -3,10 +3,11 @@
 from ros_compatibility.node import CompatibleNode
 import ros_compatibility as roscomp
 import torch
-from torchvision.models.segmentation import (
-    DeepLabV3_ResNet101_Weights,
-    deeplabv3_resnet101,
-)
+
+# from torchvision.models.segmentation import (
+#     DeepLabV3_ResNet101_Weights,
+#     deeplabv3_resnet101,
+# )
 from torchvision.models.detection.faster_rcnn import (
     FasterRCNN_MobileNet_V3_Large_320_FPN_Weights,
     FasterRCNN_ResNet50_FPN_V2_Weights,
@@ -22,10 +23,14 @@ from std_msgs.msg import Header, Float32MultiArray
 from cv_bridge import CvBridge
 from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 import numpy as np
-from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
+
+# from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
+from ultralytics import YOLO
 import asyncio
 import rospy
 from ultralytics.utils.ops import scale_masks
+
+from copy import deepcopy
 
 
 class VisionNode(CompatibleNode):
@@ -44,45 +49,45 @@ class VisionNode(CompatibleNode):
 
         # dictionary of pretrained models
         self.model_dict = {
-            "frcnn_resnet50_fpn_v2": (
-                fasterrcnn_resnet50_fpn_v2(
-                    weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
-                ),
-                FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT,
-                "detection",
-                "pyTorch",
-            ),
-            "frcnn_mobilenet_v3_large_320_fpn": (
-                fasterrcnn_mobilenet_v3_large_320_fpn(
-                    weights=FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT
-                ),
-                FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT,
-                "detection",
-                "pyTorch",
-            ),
-            "deeplabv3_resnet101": (
-                deeplabv3_resnet101(weights=DeepLabV3_ResNet101_Weights.DEFAULT),
-                DeepLabV3_ResNet101_Weights.DEFAULT,
-                "segmentation",
-                "pyTorch",
-            ),
-            "yolov8n": (YOLO, "yolov8n.pt", "detection", "ultralytics"),
-            "yolov8s": (YOLO, "yolov8s.pt", "detection", "ultralytics"),
-            "yolov8m": (YOLO, "yolov8m.pt", "detection", "ultralytics"),
-            "yolov8l": (YOLO, "yolov8l.pt", "detection", "ultralytics"),
-            "yolov8x": (YOLO, "yolov8x.pt", "detection", "ultralytics"),
-            "yolo_nas_l": (NAS, "yolo_nas_l.pt", "detection", "ultralytics"),
-            "yolo_nas_m": (NAS, "yolo_nas_m.pt", "detection", "ultralytics"),
-            "yolo_nas_s": (NAS, "yolo_nas_s.pt", "detection", "ultralytics"),
-            "rtdetr-l": (RTDETR, "rtdetr-l.pt", "detection", "ultralytics"),
-            "rtdetr-x": (RTDETR, "rtdetr-x.pt", "detection", "ultralytics"),
-            "yolov8x-seg": (YOLO, "yolov8x-seg.pt", "segmentation", "ultralytics"),
-            "sam_l": (SAM, "sam_l.pt", "detection", "ultralytics"),
-            "FastSAM-x": (FastSAM, "FastSAM-x.pt", "detection", "ultralytics"),
+            # "frcnn_resnet50_fpn_v2": (
+            #     fasterrcnn_resnet50_fpn_v2(
+            #         weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
+            #     ),
+            #     FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT,
+            #     "detection",
+            #     "pyTorch",
+            # ),
+            # "frcnn_mobilenet_v3_large_320_fpn": (
+            #     fasterrcnn_mobilenet_v3_large_320_fpn(
+            #         weights=FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT
+            #     ),
+            #     FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT,
+            #     "detection",
+            #     "pyTorch",
+            # ),
+            # "deeplabv3_resnet101": (
+            #     deeplabv3_resnet101(weights=DeepLabV3_ResNet101_Weights.DEFAULT),
+            #     DeepLabV3_ResNet101_Weights.DEFAULT,
+            #     "segmentation",
+            #     "pyTorch",
+            # ),
+            # "yolov8n": (YOLO, "yolov8n.pt", "detection", "ultralytics"),
+            # "yolov8s": (YOLO, "yolov8s.pt", "detection", "ultralytics"),
+            # "yolov8m": (YOLO, "yolov8m.pt", "detection", "ultralytics"),
+            # "yolov8l": (YOLO, "yolov8l.pt", "detection", "ultralytics"),
+            # "yolov8x": (YOLO, "yolov8x.pt", "detection", "ultralytics"),
+            # "yolo_nas_l": (NAS, "yolo_nas_l.pt", "detection", "ultralytics"),
+            # "yolo_nas_m": (NAS, "yolo_nas_m.pt", "detection", "ultralytics"),
+            # "yolo_nas_s": (NAS, "yolo_nas_s.pt", "detection", "ultralytics"),
+            # "rtdetr-l": (RTDETR, "rtdetr-l.pt", "detection", "ultralytics"),
+            # "rtdetr-x": (RTDETR, "rtdetr-x.pt", "detection", "ultralytics"),
+            # "yolov8x-seg": (YOLO, "yolov8x-seg.pt", "segmentation", "ultralytics"),
+            # "sam_l": (SAM, "sam_l.pt", "detection", "ultralytics"),
+            # "FastSAM-x": (FastSAM, "FastSAM-x.pt", "detection", "ultralytics"),
             "yolo11n-seg": (YOLO, "yolo11n-seg.pt", "segmentation", "ultralytics"),
-            "yolo11s-seg": (YOLO, "yolo11s-seg.pt", "segmentation", "ultralytics"),
-            "yolo11m-seg": (YOLO, "yolo11m-seg.pt", "segmentation", "ultralytics"),
-            "yolo11l-seg": (YOLO, "yolo11l-seg.pt", "segmentation", "ultralytics"),
+            # "yolo11s-seg": (YOLO, "yolo11s-seg.pt", "segmentation", "ultralytics"),
+            # "yolo11m-seg": (YOLO, "yolo11m-seg.pt", "segmentation", "ultralytics"),
+            # "yolo11l-seg": (YOLO, "yolo11l-seg.pt", "segmentation", "ultralytics"),
         }
 
         # general setup
@@ -446,7 +451,9 @@ class VisionNode(CompatibleNode):
 
         # proceed with traffic light detection
         if 9 in output[0].boxes.cls:
-            asyncio.run(self.process_traffic_lights(output[0], cv_image, image.header))
+            asyncio.run(
+                self.process_traffic_lights(output[0], cv_image, deepcopy(image.header))
+            )
 
         # draw bounding boxes and distance values on image
         c_boxes = torch.stack(c_boxes)
