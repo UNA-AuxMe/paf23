@@ -28,7 +28,7 @@ READ_FOLDER_PATH: str = (
 WRITE_FOLDER_PATH: str = (
     "/workspace/code/perception/src/experiments/filter_output_datasets"
 )
-FILE_NUM = "01"  # Change this to the number of the sensor_data you want to use
+FILE_NUM = "00"  # Change this to the number of the sensor_data you want to use
 
 """
 For more information take a look at the documentation:
@@ -66,7 +66,7 @@ class ExtendedKalmanFilter(CompatibleNode):
 
         # basic info
         self.role_name = self.get_param("role_name", "hero")
-        self.control_loop_rate = 0.05
+        self.control_loop_rate = 0.3
         self.publish_seq = UInt32(0)
         self.frame_id = "map"
 
@@ -115,13 +115,13 @@ class ExtendedKalmanFilter(CompatibleNode):
         # and "correction" function are as follows:
 
         # the process covariance matrix Q
-        self.Q = np.diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.Q = np.diag([0.3, 0.3, 0.3, 0.3, 0.3, 0.3])
 
         # the Kalman gain (-> gets calculated in function "correction")
         self.K = np.zeros((6, 6))
 
         # the measurement covariance matrix R
-        self.R = np.diag([0.2, 0.2, 0.2, 0.2, 0.2, 0.2])
+        self.R = np.diag([0.001, 0.001, 0.001, 0.001, 0.001, 0.001])
 
         # for rolling average (of z position)
         self.avg_z = np.zeros((GPS_RUNNING_AVG_ARGS, 1))

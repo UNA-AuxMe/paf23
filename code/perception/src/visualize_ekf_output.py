@@ -4,16 +4,14 @@ import matplotlib.pyplot as plt
 import coordinate_transformation
 from math import pi
 
-FILTER_FILE_NAME_START = "28"
-FILTER_FILE_NAME_END = "28"
+FILTER_FILE_NAME_START = "70"
+FILTER_FILE_NAME_END = "71"
 
-GT_FILE_NAME = "01"
-SENSOR_FILE_NAME = "01"
+EXCLUDE_FILTER_FILE_START = "30"
+EXCLUDE_FILTER_FILE_END = "67"
 
-# a range of filters you would NOT like to see in the plots
-# can be defined here
-exclude_start = 1
-exclude_end = 11
+GT_FILE_NAME = "00"
+SENSOR_FILE_NAME = "00"
 
 # open several filter output files
 # -> from data_<FILTER_FILE_NAME_START> to data_<FILTER_FILE_NAME_END>
@@ -217,12 +215,18 @@ for line in imu_lines:
 
 def plot_x_position():
     for i in range(len(filter_datasets)):
-        if i >= exclude_start and i <= exclude_end:
+        # make sure the filter files between EXCLUDE_FILTER_FILE_START
+        # and EXCLUDE_FILTER_FILE_END are not plotted
+        current_filter_file_nr = i + int(FILTER_FILE_NAME_START)
+        if current_filter_file_nr >= int(
+            EXCLUDE_FILTER_FILE_START
+        ) and current_filter_file_nr <= int(EXCLUDE_FILTER_FILE_END):
             continue
+
         if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = FILTER_FILE_NAME_START
+            filter_file_nr = str(int(FILTER_FILE_NAME_START) + i)
         label = "ekf x position " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],
@@ -230,7 +234,7 @@ def plot_x_position():
             label=label,
         )
     plt.plot(gt_time_stamps, gt_x_positions, label="gt x positions")
-    plt.plot(sensor_pos_time_stamps, sensor_x_positions, label="sensor x positions")
+    # plt.plot(sensor_pos_time_stamps, sensor_x_positions, label="sensor x positions")
     plt.plot()
     plt.legend()
     plt.show()
@@ -238,12 +242,18 @@ def plot_x_position():
 
 def plot_y_position():
     for i in range(len(filter_datasets)):
-        if i >= exclude_start and i <= exclude_end:
+        # make sure the filter files between EXCLUDE_FILTER_FILE_START
+        # and EXCLUDE_FILTER_FILE_END are not plotted
+        current_filter_file_nr = i + int(FILTER_FILE_NAME_START)
+        if current_filter_file_nr >= int(
+            EXCLUDE_FILTER_FILE_START
+        ) and current_filter_file_nr <= int(EXCLUDE_FILTER_FILE_END):
             continue
+
         if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = FILTER_FILE_NAME_START
+            filter_file_nr = str(int(FILTER_FILE_NAME_START) + i)
         label = "ekf y position " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],
@@ -259,12 +269,18 @@ def plot_y_position():
 
 def plot_z_position():
     for i in range(len(filter_datasets)):
-        if i >= exclude_start and i <= exclude_end:
+        # make sure the filter files between EXCLUDE_FILTER_FILE_START
+        # and EXCLUDE_FILTER_FILE_END are not plotted
+        current_filter_file_nr = i + int(FILTER_FILE_NAME_START)
+        if current_filter_file_nr >= int(
+            EXCLUDE_FILTER_FILE_START
+        ) and current_filter_file_nr <= int(EXCLUDE_FILTER_FILE_END):
             continue
+
         if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = FILTER_FILE_NAME_START
+            filter_file_nr = str(int(FILTER_FILE_NAME_START) + i)
         label = "ekf z position " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],
@@ -280,12 +296,18 @@ def plot_z_position():
 
 def plot_heading():
     for i in range(len(filter_datasets)):
-        if i >= exclude_start and i <= exclude_start:
+        # make sure the filter files between EXCLUDE_FILTER_FILE_START
+        # and EXCLUDE_FILTER_FILE_END are not plotted
+        current_filter_file_nr = i + int(FILTER_FILE_NAME_START)
+        if current_filter_file_nr >= int(
+            EXCLUDE_FILTER_FILE_START
+        ) and current_filter_file_nr <= int(EXCLUDE_FILTER_FILE_END):
             continue
+
         if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = FILTER_FILE_NAME_START
+            filter_file_nr = str(int(FILTER_FILE_NAME_START) + i)
         label = "ekf heading " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],

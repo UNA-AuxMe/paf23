@@ -3,8 +3,8 @@
 base_path = "/workspace/code/perception/src/experiments"
 
 gt_file_nr = "00"
-filter_start_nr = "00"
-filter_end_nr = "28"
+filter_start_nr = "29"
+filter_end_nr = "68"
 nr_of_digits = 6
 
 gt_file = open(
@@ -74,8 +74,10 @@ for filter in filter_datasets:
         filter_time = round(line[0], nr_of_digits)
         gt_time = round(gt_dataset[gt_line_index][0], nr_of_digits)
 
+        gt_line_amount = len(gt_dataset)
+
         # find the (first) line with the same time in the ground truth
-        while filter_time > gt_time:
+        while filter_time > gt_time and gt_line_index < gt_line_amount - 1:
             gt_line_index += 1
             gt_time = round(gt_dataset[gt_line_index][0], nr_of_digits)
 
