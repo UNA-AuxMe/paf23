@@ -40,6 +40,7 @@ class LaneDetection(CompatibleNode):
         super().__init__(name, **kwargs)
         self.bridge = CvBridge()
         self.dist_arrays = None
+        self.old_markers = MarkerArray()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.new_subscription(
             msg_type=numpy_msg(ImageMsg),
@@ -132,10 +133,13 @@ class LaneDetection(CompatibleNode):
                         total_points_counter += 1
                         wrong_points_counter += 1
 
-        if wrong_points_counter / total_points_counter < 0.2:
-            self.marker_publisher.publish(markers)
+            if wrong_points_counter / total_points_counter < 0.2:
+                rospy.loginfo("publish new marker")
+                self.old_markers = markers
+
         else:
             rospy.loginfo("no lane detection available")
+        self.marker_publisher.publish(markers)
         img_msg_mask = self.bridge.cv2_to_imgmsg(prediction[1], encoding="rgb8")
         img_msg_mask.header = msg_image.header
         self.publisher_mask.publish(img_msg_mask)
