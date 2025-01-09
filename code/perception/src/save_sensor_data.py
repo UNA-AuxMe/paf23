@@ -7,24 +7,20 @@ This node saves the following data:
 - Speedometer
 - unfiltered_pos
 """
+
 import os
 import csv
 import ros_compatibility as roscomp
 from ros_compatibility.node import CompatibleNode
 from geometry_msgs.msg import PoseStamped
 
-# from std_msgs.msg import Float32, Header
-
-# from tf.transformations import quaternion_from_euler
-
 from sensor_msgs.msg import Imu
 from carla_msgs.msg import CarlaSpeedometer
-
-# from std_msgs.msg import Float32, UInt32
 
 import rospy
 import threading
 import carla
+
 
 GPS_RUNNING_AVG_ARGS: int = 10
 DATA_SAVING_MAX_TIME: int = 20

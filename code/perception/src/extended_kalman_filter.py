@@ -28,7 +28,7 @@ READ_FOLDER_PATH: str = (
 WRITE_FOLDER_PATH: str = (
     "/workspace/code/perception/src/experiments/filter_output_datasets"
 )
-FILE_NUM = "00"  # Change this to plot your wanted file
+FILE_NUM = "01"  # Change this to the number of the sensor_data you want to use
 
 """
 For more information take a look at the documentation:

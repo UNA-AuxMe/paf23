@@ -4,13 +4,16 @@ import matplotlib.pyplot as plt
 import coordinate_transformation
 from math import pi
 
-FILTER_FILE_NAME_START = "00"
-FILTER_FILE_NAME_END = "11"
+FILTER_FILE_NAME_START = "28"
+FILTER_FILE_NAME_END = "28"
+
+GT_FILE_NAME = "01"
+SENSOR_FILE_NAME = "01"
 
 # a range of filters you would NOT like to see in the plots
 # can be defined here
 exclude_start = 1
-exclude_end = 9
+exclude_end = 11
 
 # open several filter output files
 # -> from data_<FILTER_FILE_NAME_START> to data_<FILTER_FILE_NAME_END>
@@ -31,7 +34,6 @@ for i in range(int(FILTER_FILE_NAME_START), int(FILTER_FILE_NAME_END) + 1):
     filter_files.append(filter_file)
 
 # open the corresponding ground truth file
-GT_FILE_NAME = "00"
 gt_file = open(
     "/workspace/code/perception/src/experiments/Position_Heading_Datasets/"
     + "ground_truth/data_"
@@ -43,7 +45,6 @@ gt_file = open(
 gt_first_line = gt_file.readline()
 
 # open the corresponding sensor data file
-SENSOR_FILE_NAME = "00"
 sensor_file = open(
     "/workspace/code/perception/src/experiments/Position_Heading_Datasets/"
     + "sensor_data/data_"
@@ -216,12 +217,12 @@ for line in imu_lines:
 
 def plot_x_position():
     for i in range(len(filter_datasets)):
-        if i >= 1 and i <= 9:
+        if i >= exclude_start and i <= exclude_end:
             continue
-        if i < 10:
+        if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = str(i + int(FILTER_FILE_NAME_START))
+            filter_file_nr = FILTER_FILE_NAME_START
         label = "ekf x position " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],
@@ -237,12 +238,12 @@ def plot_x_position():
 
 def plot_y_position():
     for i in range(len(filter_datasets)):
-        if i >= 1 and i <= 9:
+        if i >= exclude_start and i <= exclude_end:
             continue
-        if i < 10:
+        if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = str(i + int(FILTER_FILE_NAME_START))
+            filter_file_nr = FILTER_FILE_NAME_START
         label = "ekf y position " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],
@@ -258,12 +259,12 @@ def plot_y_position():
 
 def plot_z_position():
     for i in range(len(filter_datasets)):
-        if i >= 1 and i <= 9:
+        if i >= exclude_start and i <= exclude_end:
             continue
-        if i < 10:
+        if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = str(i + int(FILTER_FILE_NAME_START))
+            filter_file_nr = FILTER_FILE_NAME_START
         label = "ekf z position " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],
@@ -279,12 +280,12 @@ def plot_z_position():
 
 def plot_heading():
     for i in range(len(filter_datasets)):
-        if i >= 1 and i <= 9:
+        if i >= exclude_start and i <= exclude_start:
             continue
-        if i < 10:
+        if int(FILTER_FILE_NAME_START) < 10:
             filter_file_nr = "0" + str(i + int(FILTER_FILE_NAME_START))
         else:
-            filter_file_nr = str(i + int(FILTER_FILE_NAME_START))
+            filter_file_nr = FILTER_FILE_NAME_START
         label = "ekf heading " + filter_file_nr
         plt.plot(
             filter_time_dataset[i],
