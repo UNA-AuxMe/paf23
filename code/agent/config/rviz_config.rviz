@@ -3,7 +3,8 @@ Panels:
     Help Height: 78
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /Lidar1
       Splitter Ratio: 0.5
     Tree Height: 235
   - Class: rviz/Selection
@@ -61,12 +62,11 @@ Visualization Manager:
       Value: true
       Visibility:
         Grid: false
-        Image: true
         Imu: false
         Intermediate layer: true
+        Lane Detection: true
         Lidar: false
         Lidar_filtered: false
-        MarkerArray: true
         Path: false
         Radar: false
         Value: true
@@ -103,7 +103,7 @@ Visualization Manager:
       Axis: X
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 150; 150; 150
+      Color: 150; 0; 150
       Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
@@ -214,7 +214,8 @@ Visualization Manager:
       Enabled: true
       Marker Topic: /paf/hero/visualization_marker_array_lane
       Name: Lane Detection
-      Namespaces: {}
+      Namespaces:
+        min_values: true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -245,7 +246,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 22.39063835144043
+      Distance: 18.11499786376953
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -261,9 +262,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8247969746589661
+      Pitch: 0.4847971796989441
       Target Frame: <Fixed Frame>
-      Yaw: 2.7423195838928223
+      Yaw: 2.5673201084136963
     Saved: ~
 Window Geometry:
   Camera:
@@ -285,5 +286,5 @@ Window Geometry:
   VisonNode Output:
     collapsed: false
   Width: 1920
-  X: 2560
-  Y: 0
+  X: 2626
+  Y: 32
