@@ -52,7 +52,14 @@ class Visualization(CompatibleNode):
 
         for id, entity in enumerate(map.entities):
             # TODO: filtering based on flags
-            marker_array.markers.append(self.create_marker_from_entity(id, entity))
+            current = self.create_marker_from_entity(id, entity)
+            if not (
+                current.pose.position.x < 2.2
+                and current.pose.position.x > -2.5
+                and current.pose.position.y < 0.9
+                and current.pose.position.y > -0.9
+            ):
+                marker_array.markers.append(self.create_marker_from_entity(id, entity))
 
         self.marker_publisher.publish(marker_array)
 
