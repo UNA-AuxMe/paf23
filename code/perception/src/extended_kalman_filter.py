@@ -121,7 +121,7 @@ class ExtendedKalmanFilter(CompatibleNode):
         self.K = np.zeros((6, 6))
 
         # the measurement covariance matrix R
-        self.R = np.diag([0.001, 0.001, 0.001, 0.001, 0.001, 0.001])
+        self.R = np.diag([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001])
 
         # for rolling average (of z position)
         self.avg_z = np.zeros((GPS_RUNNING_AVG_ARGS, 1))

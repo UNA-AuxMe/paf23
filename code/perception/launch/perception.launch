@@ -15,7 +15,7 @@
     <param name="role_name" value="$(arg role_name)" />
   </node>
 
-  <node pkg="perception" type="debug_wrapper.py" name="extended_kalman_filter_node" output="screen" args="--debug_node=extended_kalman_filter.py --debug_port=53000">
+  <node pkg="perception" type="extended_kalman_filter.py" name="extended_kalman_filter_node" output="screen">
     <param name="control_loop_rate" value="$(arg control_loop_rate)" />
     <param name="role_name" value="$(arg role_name)" />
   </node>

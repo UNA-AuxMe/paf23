@@ -4,14 +4,14 @@ import matplotlib.pyplot as plt
 import coordinate_transformation
 from math import pi
 
-FILTER_FILE_NAME_START = "70"
-FILTER_FILE_NAME_END = "71"
+FILTER_FILE_NAME_START = "55"
+FILTER_FILE_NAME_END = "79"
 
-EXCLUDE_FILTER_FILE_START = "30"
-EXCLUDE_FILTER_FILE_END = "67"
+EXCLUDE_FILTER_FILE_START = "56"
+EXCLUDE_FILTER_FILE_END = "78"
 
-GT_FILE_NAME = "00"
-SENSOR_FILE_NAME = "00"
+GT_FILE_NAME = "02"
+SENSOR_FILE_NAME = "02"
 
 # open several filter output files
 # -> from data_<FILTER_FILE_NAME_START> to data_<FILTER_FILE_NAME_END>
@@ -261,7 +261,7 @@ def plot_y_position():
             label=label,
         )
     plt.plot(gt_time_stamps, gt_y_positions, label="gt y positions")
-    plt.plot(sensor_pos_time_stamps, sensor_y_positions, label="sensor y positions")
+    # plt.plot(sensor_pos_time_stamps, sensor_y_positions, label="sensor y positions")
     plt.plot()
     plt.legend()
     plt.show()
@@ -288,7 +288,7 @@ def plot_z_position():
             label=label,
         )
     plt.plot(gt_time_stamps, gt_z_positions, label="gt z positions")
-    plt.plot(sensor_pos_time_stamps, sensor_z_positions, label="sensor z positions")
+    # plt.plot(sensor_pos_time_stamps, sensor_z_positions, label="sensor z positions")
     plt.plot()
     plt.legend()
     plt.show()
@@ -315,10 +315,12 @@ def plot_heading():
             label=label,
         )
     plt.plot(gt_time_stamps, gt_headings, label="gt heading")
-    plt.plot(sensor_imu_time_stamps, sensor_headings, label="sensor headings")
+    # plt.plot(sensor_imu_time_stamps, sensor_headings, label="sensor headings")
     plt.plot()
     plt.legend()
     plt.show()
 
 
+plot_x_position()
+plot_y_position()
 plot_heading()

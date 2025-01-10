@@ -4,7 +4,7 @@ base_path = "/workspace/code/perception/src/experiments"
 
 gt_file_nr = "00"
 filter_start_nr = "29"
-filter_end_nr = "68"
+filter_end_nr = "72"
 nr_of_digits = 6
 
 gt_file = open(
