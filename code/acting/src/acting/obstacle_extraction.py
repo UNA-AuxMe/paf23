@@ -6,7 +6,10 @@ from visualization_msgs.msg import Marker, MarkerArray
 from mapping.msg import Entity
 from std_msgs.msg import String
 from geometry_msgs.msg import Pose, Point
-from rospy import Publisher
+from rospy import Publisher, Duration
+
+from mapping_common.entity import Entity
+from mapping_common.map import Map
 
 
 class ObstacleDetection(CompatibleNode):
@@ -29,43 +32,79 @@ class ObstacleDetection(CompatibleNode):
                 "~map_topic", "/paf/hero/visualization_marker_array_lane"
             ),
             msg_type=MarkerArray,
+            callback=self.lane_callback,
+            qos_profile=1,
+        )
+
+        self.new_subscription(
+            topic=self.get_param("~map_topic", "/paf/hero/mapping/init_data"),
+            msg_type=MapMsg,
             callback=self.map_callback,
             qos_profile=1,
         )
 
         self.entity_publisher: Publisher = self.new_publisher(
-            Point, "/test", qos_profile=1
+            MarkerArray, "/acting/entities", qos_profile=1
         )
 
-    def map_callback(self, data):
-        # self.entity_publisher.publish(data.markers[0].pose.position)
+        self.lane_points_left = []
+        self.lane_points_right = []
 
-        lane_points_left = []
-        lane_points_right = []
+    def create_marker_from_entity(self, id, entity: Entity) -> Marker:
+        marker = entity.to_marker()
+        marker.header.frame_id = "hero"
+        marker.header.stamp = roscomp.ros_timestamp(self.get_time(), from_sec=True)
+        marker.ns = "m"
+        marker.id = id
+        marker.lifetime = Duration.from_sec(1.25 / 20.0)
 
+        return marker
+
+    def lane_callback(self, data):
         for marker in data.markers:
             # left side of the car is positiv y
             if (marker.pose.position.y) > 0:
-                lane_points_left.append(marker.pose.position)
+                self.lane_points_left.append(marker.pose.position)
             # right side of the car is negativ y
             else:
-                lane_points_right.append(marker.pose.position)
+                self.lane_points_right.append(marker.pose.position)
 
-            lane_points_left.sort(key=lambda point: point.x)
-            lane_points_right.sort(key=lambda point: point.x)
-            lane_points_left.reverse()
-            lane_points_right.reverse()
+            self.lane_points_left.sort(key=lambda point: point.x)
+            self.lane_points_right.sort(key=lambda point: point.x)
+            self.lane_points_left.reverse()
+            self.lane_points_right.reverse()
 
-        temp = Point()
-        temp.x = -1.0
-        temp.y = -1.0
-        temp.z = -1.0
-        self.entity_publisher.publish(temp)
+    def map_callback(self, data: MapMsg):
+        # lane_points lists are geometry_msgs/Position
+        # get approcimate Y-Coordiante of the lane
 
-        self.entity_publisher.publish(lane_points_left[0])
-        self.entity_publisher.publish(lane_points_left[-1])
-        self.entity_publisher.publish(lane_points_right[0])
-        self.entity_publisher.publish(lane_points_right[-1])
+        if not (len(self.lane_points_left) == 0 and len(self.lane_points_right) == 0):
+            left_lane_pos = (
+                self.lane_points_left[0].y + (self.lane_points_left.pop()).y
+            ) / 2
+            right_lane_pos = (
+                self.lane_points_right[0].y + (self.lane_points_right.pop()).y
+            ) / 2
+
+            # transform Map into markers
+            map = Map.from_ros_msg(data)
+            marker_array = MarkerArray()
+
+            for id, entity in enumerate(map.entities):
+                current_entity_marker = self.create_marker_from_entity(id, entity)
+                # check if this entity is inbetweet the detected lane markings -> entity inside the current lane
+                if (
+                    current_entity_marker.pose.position.y < left_lane_pos
+                    and current_entity_marker.pose.position.y > right_lane_pos
+                    and current_entity_marker.pose.position.x > 2.0
+                ):
+                    # change marker color, to make entities visible
+                    current_entity_marker.color.r = 0
+                    current_entity_marker.color.g = 150
+                    current_entity_marker.color.b = 0
+                    marker_array.markers.append(current_entity_marker)
+            # publish selected markers
+            self.entity_publisher.publish(marker_array)
 
 
 def main(args=None):
