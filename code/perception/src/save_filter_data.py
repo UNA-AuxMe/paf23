@@ -13,9 +13,10 @@ import csv
 import ros_compatibility as roscomp
 from ros_compatibility.node import CompatibleNode
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Float32
 
-from sensor_msgs.msg import Imu
-from carla_msgs.msg import CarlaSpeedometer
+# from sensor_msgs.msg import Imu
+# from carla_msgs.msg import CarlaSpeedometer
 
 import rospy
 import threading
@@ -23,21 +24,20 @@ import carla
 
 
 DATA_SAVING_MAX_TIME: int = 20
-FOLDER_PATH: str = "/Position_Heading_Datasets"
+FOLDER_PATH: str = "/filter_comparison"
 
 
-class SaveSensorData(CompatibleNode):
+class SaveFilterData(CompatibleNode):
     """
-    Node saves the sensor data provided by:
-    - the GPS sensor (already converted into x/y/z -> unfiltered_pos topic)
-    - the IMU
-    - the Speedometer
-    into a .csv file.
+    The node saves data from 2 filters so they can be compared.
+    The filters publish 2 topics each:
+    - their estimation of the current position
+    - their estimation of the current heading
     """
 
     def __init__(self):
 
-        super(SaveSensorData, self).__init__("save_sensor_data")
+        super(SaveFilterData, self).__init__("save_filter_data")
 
         # basic info
         self.role_name = self.get_param("role_name", "hero")
@@ -51,124 +51,280 @@ class SaveSensorData(CompatibleNode):
         self.carla_car = None
 
         # csv file attributes/ flags for plots
-        self.sensor_data_csv_created = False
-        self.sensor_data_csv_file_path = ""
+        self.new_filter_pos_csv_created = False
+        self.new_filter_pos_csv_file_path = ""
+        self.new_filter_heading_csv_created = False
+        self.new_filter_heading_csv_file_path = ""
+
+        self.new_filter_heading_csv_created = False
+        self.new_filter_heading_csv_file_path = ""
+
+        self.old_filter_pos_csv_created = False
+        self.old_filter_pos_csv_file_path = ""
+        self.old_filter_heading_csv_created = False
+        self.old_filter_heading_csv_file_path = ""
+
         self.ground_truth_csv_created = False
         self.ground_truth_csv_file_path = ""
 
-        self.loginfo("Save Sensor Data node started")
+        self.loginfo("Save Filter Data node started")
 
         self.time = 0.0
 
-        self.previous_pos = []
+        """self.previous_pos = []
         self.pos_to_write = []
         self.previous_imu = []
         self.imu_to_write = []
         self.previous_vel = []
         self.vel_to_write = []
-        self.gt_to_write = []
+        self.gt_to_write = []"""
+        self.previous_nf_pos = []
+        self.nf_pos_to_write = []
+        self.previous_nf_heading = []
+        self.nf_heading_to_write = []
 
-        self.first_line_written = False
+        self.previous_of_pos = []
+        self.of_pos_to_write = []
+        self.previous_of_heading = []
+        self.of_heading_to_write = []
+
+        # self.first_line_written = False
+        self.nf_pos_first_line_written = False
+        self.nf_heading_first_line_written = False
+        self.of_pos_first_line_written = False
+        self.of_heading_first_line_written = False
+
         self.stop_saving_data = True
 
         # Subscriber
 
-        self.position_subscriber = self.new_subscription(
+        self.nf_position_subscriber = self.new_subscription(
             PoseStamped,
-            "/paf/" + self.role_name + "/unfiltered_pos",
-            self.save_position,
+            "/paf/" + self.role_name + "/extended_kalman_pos",
+            self.save_nf_position,
             qos_profile=1,
         )
 
-        # set up the subscriber for the IMU data
-        # (linear acceleration, orientation, angular velocity)
-        self.imu_subscriber = self.new_subscription(
-            Imu,
-            "/carla/" + self.role_name + "/IMU",
-            self.save_imu_data,
+        self.nf_heading_subscriber = self.new_subscription(
+            Float32,
+            "/paf/" + self.role_name + "/extended_kalman_heading",
+            self.save_nf_heading,
             qos_profile=1,
         )
 
-        # set up the subscriber for the velocity
-        self.velocity_subscriber = self.new_subscription(
-            CarlaSpeedometer,
-            "/carla/" + self.role_name + "/Speed",
-            self.save_velocity,
+        self.of_position_subscriber = self.new_subscription(
+            PoseStamped,
+            "/paf/" + self.role_name + "/kalman_pos",
+            self.save_of_position,
+            qos_profile=1,
+        )
+
+        self.of_heading_subscriber = self.new_subscription(
+            Float32,
+            "/paf/" + self.role_name + "/kalman_heading",
+            self.save_of_heading,
             qos_profile=1,
         )
 
     # Subscriber Callbacks
 
-    def save_position(self, unfiltered_pos):
+    def save_nf_position(self, position):
         """
-        This method saves the current position in a csv file
+        This method saves the estimated position of the new filter in a csv file
         """
         if self.stop_saving_data is True:
             return
 
         # Specify the path to the folder where you want to save the data
         base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
-        folder_path = base_path + "/sensor_data"
+        folder_path = base_path + "/new_filter_pos"
         # Ensure the directories exist
         os.makedirs(folder_path, exist_ok=True)
 
         # Create the csv files ONCE if it does not exist
-        if self.sensor_data_csv_created is False:
-            self.sensor_data_csv_file_path = create_file(folder_path)
-            self.sensor_data_csv_created = True
+        if self.new_filter_pos_csv_created is False:
+            self.new_filter_pos_csv_file_path = create_file(folder_path)
+            self.new_filter_pos_csv_created = True
 
         if self.carla_car is None:
             return
-        self.write_csv_pos(unfiltered_pos)
+        self.write_csv_nf_pos(position)
 
-    def write_csv_pos(self, unfiltered_pos):
-        with open(self.sensor_data_csv_file_path, "a", newline="") as file:
+    def write_csv_nf_pos(self, position):
+        with open(self.new_filter_pos_csv_file_path, "a", newline="") as file:
             writer = csv.writer(file)
             # Check if file is empty and add first row
-            if self.first_line_written is False:
+            if self.nf_pos_first_line_written is False:
                 writer.writerow(
                     [
                         "Time",
-                        "Sensor",
                         "pos x",
                         "pos y",
                         "pos z",
-                        "vel",
-                        "orientation x",
-                        "orientation y",
-                        "orientation z",
-                        "orientation w",
-                        "ang vel z",
-                        "lin acc x",
-                        "lin acc y",
                     ]
                 )
-                self.first_line_written = True
+                self.nf_pos_first_line_written = True
             self.time = rospy.get_time()
-            self.pos_to_write = [
+            self.nf_pos_to_write = [
                 self.time,
-                "pos",
-                unfiltered_pos.pose.position.x,
-                unfiltered_pos.pose.position.y,
-                unfiltered_pos.pose.position.z,
-                0.0,  # vel
-                0.0,  # orientation
-                0.0,
-                0.0,
-                0.0,
-                0.0,  # ang vel
-                0.0,  # lin acc
-                0.0,
+                position.pose.position.x,
+                position.pose.position.y,
+                position.pose.position.z,
             ]
-            if self.previous_pos != self.pos_to_write:
-                writer.writerow(self.pos_to_write)
-                self.previous_pos = self.pos_to_write
+            if self.previous_nf_pos != self.nf_pos_to_write:
+                writer.writerow(self.nf_pos_to_write)
+                self.previous_nf_pos = self.nf_pos_to_write
 
             # after each sensor measurement
             # -> save the ground truth
             self.save_ground_truth()
 
-    def save_imu_data(self, imu_data):
+    def save_nf_heading(self, heading):
+        """
+        This method saves the estimated heading of the new filter in a csv file
+        """
+        if self.stop_saving_data is True:
+            return
+
+        # Specify the path to the folder where you want to save the data
+        base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
+        folder_path = base_path + "/new_filter_heading"
+        # Ensure the directories exist
+        os.makedirs(folder_path, exist_ok=True)
+
+        # Create the csv files ONCE if it does not exist
+        if self.new_filter_heading_csv_created is False:
+            self.new_filter_heading_csv_file_path = create_file(folder_path)
+            self.new_filter_heading_csv_created = True
+
+        if self.carla_car is None:
+            return
+        self.write_csv_nf_heading(heading)
+
+    def write_csv_nf_heading(self, heading):
+        with open(self.new_filter_heading_csv_file_path, "a", newline="") as file:
+            writer = csv.writer(file)
+            # Check if file is empty and add first row
+            if self.nf_heading_first_line_written is False:
+                writer.writerow(
+                    [
+                        "Time",
+                        "heading",
+                    ]
+                )
+                self.nf_heading_first_line_written = True
+            self.time = rospy.get_time()
+            self.nf_heading_to_write = [
+                self.time,
+                heading.data,
+            ]
+            if self.previous_nf_heading != self.nf_heading_to_write:
+                writer.writerow(self.nf_heading_to_write)
+                self.previous_nf_heading = self.nf_heading_to_write
+
+            # after each sensor measurement
+            # -> save the ground truth
+            self.save_ground_truth()
+
+    def save_of_position(self, position):
+        """
+        This method saves the estimated position of the old filter in a csv file
+        """
+        if self.stop_saving_data is True:
+            return
+
+        # Specify the path to the folder where you want to save the data
+        base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
+        folder_path = base_path + "/old_filter_pos"
+        # Ensure the directories exist
+        os.makedirs(folder_path, exist_ok=True)
+
+        # Create the csv files ONCE if it does not exist
+        if self.old_filter_pos_csv_created is False:
+            self.old_filter_pos_csv_file_path = create_file(folder_path)
+            self.old_filter_pos_csv_created = True
+
+        if self.carla_car is None:
+            return
+        self.write_csv_of_pos(position)
+
+    def write_csv_of_pos(self, position):
+        with open(self.old_filter_pos_csv_file_path, "a", newline="") as file:
+            writer = csv.writer(file)
+            # Check if file is empty and add first row
+            if self.of_pos_first_line_written is False:
+                writer.writerow(
+                    [
+                        "Time",
+                        "pos x",
+                        "pos y",
+                        "pos z",
+                    ]
+                )
+                self.of_pos_first_line_written = True
+            self.time = rospy.get_time()
+            self.of_pos_to_write = [
+                self.time,
+                position.pose.position.x,
+                position.pose.position.y,
+                position.pose.position.z,
+            ]
+            if self.previous_of_pos != self.of_pos_to_write:
+                writer.writerow(self.of_pos_to_write)
+                self.previous_of_pos = self.of_pos_to_write
+
+            # after each sensor measurement
+            # -> save the ground truth
+            self.save_ground_truth()
+
+    def save_of_heading(self, heading):
+        """
+        This method saves the estimated heading of the old filter in a csv file
+        """
+        if self.stop_saving_data is True:
+            return
+
+        # Specify the path to the folder where you want to save the data
+        base_path = "/workspace/code/perception/" "src/experiments/" + FOLDER_PATH
+        folder_path = base_path + "/old_filter_heading"
+        # Ensure the directories exist
+        os.makedirs(folder_path, exist_ok=True)
+
+        # Create the csv files ONCE if it does not exist
+        if self.old_filter_heading_csv_created is False:
+            self.old_filter_heading_csv_file_path = create_file(folder_path)
+            self.old_filter_heading_csv_created = True
+
+        if self.carla_car is None:
+            return
+        self.write_csv_of_heading(heading)
+
+    def write_csv_of_heading(self, heading):
+        with open(self.old_filter_heading_csv_file_path, "a", newline="") as file:
+            writer = csv.writer(file)
+            # Check if file is empty and add first row
+            if self.of_heading_first_line_written is False:
+                writer.writerow(
+                    [
+                        "Time",
+                        "heading",
+                    ]
+                )
+                self.of_heading_first_line_written = True
+            self.time = rospy.get_time()
+            self.of_heading_to_write = [
+                self.time,
+                heading.data,
+            ]
+            if self.previous_of_heading != self.of_heading_to_write:
+                writer.writerow(self.of_heading_to_write)
+                self.previous_of_heading = self.of_heading_to_write
+
+            # after each sensor measurement
+            # -> save the ground truth
+            self.save_ground_truth()
+
+    '''def save_imu_data(self, imu_data):
         """
         This method saves the imu data in a csv file
         """
@@ -304,7 +460,7 @@ class SaveSensorData(CompatibleNode):
 
             # after each sensor measurement
             # -> save the ground truth
-            self.save_ground_truth()
+            self.save_ground_truth()'''
 
     def save_ground_truth(self):
         """
@@ -325,6 +481,7 @@ class SaveSensorData(CompatibleNode):
             self.ground_truth_csv_created = True
 
         self.write_csv_gt()
+        pass
 
     def write_csv_gt(self):
         with open(self.ground_truth_csv_file_path, "a", newline="") as file:
@@ -337,45 +494,21 @@ class SaveSensorData(CompatibleNode):
                         "pos x",
                         "pos y",
                         "pos z",
-                        "vel",
                         "heading",
-                        "ang vel z",
-                        "lin acc x",
-                        "lin acc y",
                     ]
                 )
 
             carla_pos = self.carla_car.get_location()
             carla_pos.y = -carla_pos.y
 
-            # velocity
-            carla_vel_vector = self.carla_car.get_velocity()
-            carla_vel = carla_vel_vector.x + carla_vel_vector.y + carla_vel_vector.z
-
-            # orientation
-            # carla_quat = quaternion_from_euler(
-            # self.carla_car.get_transform().rotation.roll,
-            # self.carla_car.get_transform().rotation.pitch,
-            # self.carla_car.get_transform().rotation.yaw)
             carla_heading = self.carla_car.get_transform().rotation.yaw
-
-            # angular velocity around z axis
-            carla_ang_vel_z = self.carla_car.get_angular_velocity().z
-
-            # linear acceleration
-            carla_lin_acc_x = self.carla_car.get_acceleration().x
-            carla_lin_acc_y = self.carla_car.get_acceleration().y
 
             self.gt_to_write = [
                 self.time,
                 carla_pos.x,
                 carla_pos.y,
                 carla_pos.z,
-                carla_vel,
                 carla_heading,
-                carla_ang_vel_z,
-                carla_lin_acc_x,
-                carla_lin_acc_y,
             ]
             writer.writerow(self.gt_to_write)
 
@@ -477,7 +610,7 @@ def main(args=None):
 
     roscomp.init("save_sensor_data", args=args)
     try:
-        node = SaveSensorData()
+        node = SaveFilterData()
         node.run()
     except KeyboardInterrupt:
         pass
