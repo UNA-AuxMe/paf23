@@ -90,7 +90,7 @@ class LaneDetection(CompatibleNode):
         marker.action = Marker.ADD
         marker.scale.x = 0.01
         marker.scale.y = 0.01
-        marker.scale.z = 0.01
+        marker.scale.z = 1.0
         marker.color.a = 1.0
         marker.color.r = c_color[0]
         marker.color.g = c_color[1]
