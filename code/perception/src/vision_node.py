@@ -27,6 +27,9 @@ import asyncio
 import rospy
 from ultralytics.utils.ops import scale_masks
 
+# import to correct freezing node
+from copy import deepcopy
+
 
 class VisionNode(CompatibleNode):
     """
@@ -446,7 +449,9 @@ class VisionNode(CompatibleNode):
 
         # proceed with traffic light detection
         if 9 in output[0].boxes.cls:
-            asyncio.run(self.process_traffic_lights(output[0], cv_image, image.header))
+            asyncio.run(
+                self.process_traffic_lights(output[0], cv_image, deepcopy(image.header))
+            )
 
         # draw bounding boxes and distance values on image
         c_boxes = torch.stack(c_boxes)
@@ -514,7 +519,7 @@ class VisionNode(CompatibleNode):
         indices = np.asarray([indices]) if indices.size == 1 else indices
 
         max_y = 360  # middle of image
-        min_prob = 0.30
+        min_prob = 0.030
 
         for index in indices:
             box = prediction.boxes.cpu().data.numpy()[index]
