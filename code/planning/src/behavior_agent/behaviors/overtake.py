@@ -4,7 +4,9 @@ from std_msgs.msg import String
 import rospy
 import numpy as np
 
-from behaviours import behavior_speed as bs
+from scipy.spatial.transform import Rotation
+
+from behaviors import behavior_speed as bs
 from local_planner.utils import NUM_WAYPOINTS, TARGET_DISTANCE_TO_STOP, convert_to_ms
 
 """
@@ -14,6 +16,121 @@ Source: https://github.com/ll7/psaf2
 
 # Varaible to determine the distance to overtake the object
 OVERTAKE_EXECUTING = 0
+
+
+class Ahead(py_trees.behaviour.Behaviour):
+    """
+    This behaviour checks whether an object that needs to be overtaken is
+    ahead
+    """
+
+    def __init__(self, name):
+        """
+        Minimal one-time initialisation. A good rule of thumb is to only
+        include the initialisation relevant for being able to insert this
+        behaviour in a tree for offline rendering to dot graphs.
+
+         :param name: name of the behaviour
+        """
+        super(Ahead, self).__init__(name)
+
+    def setup(self, timeout):
+        """
+        Delayed one-time initialisation that would otherwise interfere with
+        offline rendering of this behaviour in a tree to dot graph or
+        validation of the behaviour's configuration.
+
+        This initializes the blackboard to be able to access data written to it
+        by the ROS topics.
+        :param timeout: an initial timeout to see if the tree generation is
+        successful
+        :return: True, as the set up is successful.
+        """
+        self.blackboard = py_trees.blackboard.Blackboard()
+
+        return True
+
+    def initialise(self):
+        """
+        When is this called?
+            The first time your behaviour is ticked and anytime the status is
+            not RUNNING thereafter.
+        What to do here?
+            Any initialisation you need before putting your behaviour to work.
+        """
+        # Counter for detecting overtake situation
+        self.counter_overtake = 0
+        return True
+
+    def update(self):
+        """
+        When is this called?
+        Every time your behaviour is ticked.
+        What to do here?
+            - Triggering, checking, monitoring. Anything...but do not block!
+            - Set a feedback message
+            - return a py_trees.common.Status.[RUNNING, SUCCESS, FAILURE]
+
+        Gets the current distance and speed to object in front.
+        :return: py_trees.common.Status.SUCCESS, if the vehicle is within range
+                    for the overtaking procedure
+                 py_trees.common.Status.FAILURE, if we are too far away for
+                 the overtaking procedure
+        """
+
+        obstacle_msg = self.blackboard.get("/paf/hero/collision")
+        current_position = self.blackboard.get("/paf/hero/current_pos")
+        current_heading = self.blackboard.get("/paf/hero/current_heading").data
+
+        if obstacle_msg is None or current_position is None or current_heading is None:
+            return py_trees.common.Status.FAILURE
+        current_position = [
+            current_position.pose.position.x,
+            current_position.pose.position.y,
+            current_position.pose.position.z,
+        ]
+
+        obstacle_distance = obstacle_msg.data[0]
+        obstacle_speed = obstacle_msg.data[1]
+
+        if obstacle_distance == np.Inf:
+            return py_trees.common.Status.FAILURE
+        # calculate approx collision position in global coords
+        rotation_matrix = Rotation.from_euler("z", current_heading)
+        # Apply current heading to absolute distance vector
+        # and add to current position
+        pos_moved_in_x_direction = current_position + rotation_matrix.apply(
+            np.array([obstacle_distance, 0, 0])
+        )
+
+        if np.linalg.norm(pos_moved_in_x_direction - current_position) < 1:
+            # current collision is not near trajectory lane
+            rospy.logerr("Obstacle is not near trajectory lane")
+            return py_trees.common.Status.FAILURE
+
+        if obstacle_speed < 2 and obstacle_distance < 30:
+            self.counter_overtake += 1
+            rospy.loginfo("Overtake counter: " + str(self.counter_overtake))
+            if self.counter_overtake > 3:
+                return py_trees.common.Status.SUCCESS
+            return py_trees.common.Status.RUNNING
+        else:
+            return py_trees.common.Status.FAILURE
+
+    def terminate(self, new_status):
+        """
+        When is this called?
+        Whenever your behaviour switches to a non-running state.
+            - SUCCESS || FAILURE : your behaviour's work cycle has finished
+            - INVALID : a higher priority branch has interrupted, or shutting
+            down
+        writes a status message to the console when the behaviour terminates
+        :param new_status: new state after this one is terminated
+        """
+        self.logger.debug(
+            "  %s [Foo::terminate().terminate()][%s->%s]"
+            % (self.name, self.status, new_status)
+        )
 
 
 class Approach(py_trees.behaviour.Behaviour):
@@ -75,8 +192,9 @@ class Approach(py_trees.behaviour.Behaviour):
             - Set a feedback message
             - return a py_trees.common.Status.[RUNNING, SUCCESS, FAILURE]
 
-        Gets the current distance to overtake, the current lane status and the
-        distance to collsion object.
+        Gets the current distance to overtake, the current oncoming lane status and the
+        distance to collsion object. Slows down while oncoming blocked until stopped
+        or oncoming clear.
         :return: py_trees.common.Status.RUNNING, if too far from overtaking
                  py_trees.common.Status.SUCCESS, if stopped behind the blocking
                  object or entered the process.
@@ -110,7 +228,7 @@ class Approach(py_trees.behaviour.Behaviour):
                 self.curr_behavior_pub.publish(bs.ot_app_free.name)
                 return py_trees.common.Status.SUCCESS
             else:
-                rospy.loginfo("Overtake blocked slowing down")
+                rospy.loginfo("Overtake Approach: oncoming blocked slowing down")
                 self.curr_behavior_pub.publish(bs.ot_app_blocked.name)
 
         # get speed
@@ -123,11 +241,14 @@ class Approach(py_trees.behaviour.Behaviour):
 
         if self.ot_distance > 20.0:
             # too far
-            rospy.loginfo("still approaching")
+            rospy.loginfo(
+                f"Overtake Approach: still approaching obstacle, "
+                f"distance: {self.ot_distance}"
+            )
             return py_trees.common.Status.RUNNING
         elif speed < convert_to_ms(2.0) and self.ot_distance < TARGET_DISTANCE_TO_STOP:
             # stopped
-            rospy.loginfo("stopped")
+            rospy.loginfo("Overtake Approach: stopped behind obstacle")
             return py_trees.common.Status.SUCCESS
         else:
             # still approaching
@@ -216,7 +337,7 @@ class Wait(py_trees.behaviour.Behaviour):
         clear_distance = 30
         obstacle_msg = self.blackboard.get("/paf/hero/collision")
         if obstacle_msg is None:
-            rospy.logerr("No OBSTACLE")
+            rospy.logerr("No OBSTACLE in overtake wait")
             return py_trees.common.Status.FAILURE
 
         data = self.blackboard.get("/paf/hero/oncoming")
@@ -231,14 +352,16 @@ class Wait(py_trees.behaviour.Behaviour):
                 self.curr_behavior_pub.publish(bs.ot_wait_free.name)
                 return py_trees.common.Status.SUCCESS
             else:
-                rospy.loginfo(f"Overtake still blocked: {distance_oncoming}")
+                rospy.loginfo(
+                    f"Overtake still blocked, distance to oncoming: {distance_oncoming}"
+                )
                 self.curr_behavior_pub.publish(bs.ot_wait_stopped.name)
                 return py_trees.common.Status.RUNNING
         elif obstacle_msg.data[0] == np.inf:
-            rospy.loginf("No OBSTACLE")
+            rospy.loginf("No OBSTACLE in overtake wait")
             return py_trees.common.Status.FAILURE
         else:
-            rospy.loginfo("No Lidar Distance")
+            rospy.loginfo("No Lidar Distance in overtake wait")
             return py_trees.common.Status.SUCCESS
 
     def terminate(self, new_status):
@@ -312,7 +435,7 @@ class Enter(py_trees.behaviour.Behaviour):
            - Set a feedback message
            - return a py_trees.common.Status.[RUNNING, SUCCESS, FAILURE]
 
-
+        Waits for motion_planner to finish the new trajectory.
         :return: py_trees.common.Status.RUNNING,
                  py_trees.common.Status.SUCCESS,
                  py_trees.common.Status.FAILURE,
@@ -320,17 +443,17 @@ class Enter(py_trees.behaviour.Behaviour):
         status = self.blackboard.get("/paf/hero/overtake_success")
         if status is not None:
             if status.data == 1:
-                rospy.loginfo("Overtake: Trajectory planned")
+                rospy.loginfo("Overtake Enter: Trajectory planned")
                 return py_trees.common.Status.SUCCESS
             elif status.data == 0:
                 self.curr_behavior_pub.publish(bs.ot_enter_slow.name)
-                rospy.loginfo("Overtake: Slowing down")
+                rospy.loginfo("Overtake Enter: Slowing down")
                 return py_trees.common.Status.RUNNING
             else:
-                rospy.loginfo("OvertakeEnter: Abort")
+                rospy.loginfo("Overtake Enter: Abort")
                 return py_trees.common.Status.FAILURE
         else:
-            rospy.loginfo("Overtake: Waiting for status update")
+            rospy.loginfo("Overtake Enter: Waiting for status update")
             return py_trees.common.Status.RUNNING
 
     def terminate(self, new_status):
@@ -393,7 +516,7 @@ class Leave(py_trees.behaviour.Behaviour):
         self.curr_behavior_pub.publish(bs.ot_leave.name)
         data = self.blackboard.get("/paf/hero/current_pos")
         self.first_pos = np.array([data.pose.position.x, data.pose.position.y])
-        rospy.loginfo(f"Leave Overtake: {self.first_pos}")
+        rospy.loginfo(f"Init Leave Overtake: {self.first_pos}")
         return True
 
     def update(self):
@@ -412,7 +535,7 @@ class Leave(py_trees.behaviour.Behaviour):
         self.current_pos = np.array([data.pose.position.x, data.pose.position.y])
         distance = np.linalg.norm(self.first_pos - self.current_pos)
         if distance > OVERTAKE_EXECUTING + NUM_WAYPOINTS:
-            rospy.loginfo(f"Left Overtake: {self.current_pos}")
+            rospy.loginfo(f"Overtake executed: {self.current_pos}")
             return py_trees.common.Status.FAILURE
         else:
             return py_trees.common.Status.RUNNING
