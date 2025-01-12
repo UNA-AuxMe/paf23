@@ -169,10 +169,8 @@ class PurePursuitController(CompatibleNode):
         min_dist_idx = -1
         # might be more elegant to only look at points
         # _ahead_ of the closest point on the trajectory
-        for i in range(len(self.__path.poses)):
+        for i in range(self.__tp_idx, len(self.__path.poses)):
             pose: PoseStamped = self.__path.poses[i]
-            if not self.__is_ahead((pose.pose.position.x, pose.pose.position.y)):
-                continue
             dist = self.__dist_to(pose.pose.position)
             dist2ld = dist - ld
             # can be optimized
@@ -180,24 +178,6 @@ class PurePursuitController(CompatibleNode):
                 min_dist = dist2ld
                 min_dist_idx = i
         return min_dist_idx
-
-    def rotate_vector_2d(self, vector, angle_rad):
-        rotation_matrix = np.array(
-            [
-                [np.cos(angle_rad), -np.sin(angle_rad)],
-                [np.sin(angle_rad), np.cos(angle_rad)],
-            ]
-        )
-
-        return rotation_matrix @ np.array(vector)
-
-    def __is_ahead(self, pos: Tuple[float, float]):
-        x, y = pos
-        c_x, c_y = self.__position
-        to_car = np.array([x - c_x, y - c_y])
-        heading = self.rotate_vector_2d(np.array([1.0, 0.0]), self.__heading)
-
-        return np.dot(to_car, heading) > 1
 
     def __dist_to(self, pos: Point) -> float:
         """

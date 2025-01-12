@@ -10,6 +10,13 @@
         <param name="control_loop_rate" value="$(arg control_loop_rate)" />
     </node>
 
+    <node pkg="acting" type="lane_follower.py" name="LaneFollower" output="screen">
+        <param name="role_name" value="$(arg role_name)" />
+        <param name="input_topic_name" value="paf/$(arg role_name)/trajectory"/>
+        <param name="output_topic_name" value="paf/acting/trajectory"/>
+        <param name="activated" type="bool" value="true" />
+    </node>
+
     <node pkg="acting" type="MainFramePublisher.py" name="MainFramePublisher" output="screen">
         <param name="control_loop_rate" value="$(arg control_loop_rate)" />
         <param name="role_name" value="$(arg role_name)" />

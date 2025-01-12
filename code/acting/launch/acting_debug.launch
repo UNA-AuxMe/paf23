@@ -10,11 +10,19 @@ This launch file starts acting as well as the debug node.
         <arg name="control_loop_rate" value="$(arg control_loop_rate)"/>
         <arg name="role_name" value="$(arg role_name)"/>
     </include>
-    
-    <!--<node pkg="acting" type="LaneFollower.py" name="LaneFollower" output="screen">
+
+    <!--
+    <node pkg="acting" type="Acting_Debug_Node.py" name="Acting_Debug_Node" output="screen">
         <param name="control_loop_rate" value="$(arg control_loop_rate)"  />
         <param name="role_name" value="$(arg role_name)" />
-    </node>-->
+    </node>
+    -->   
+
+    <node pkg="acting" type="lane_follower_debug_source.py" name="LaneFollowerDebugSource" output="screen">
+        <param name="control_loop_rate" value="$(arg control_loop_rate)"  />
+        <param name="role_name" value="$(arg role_name)" />
+        <param name="output_topic_name" value="paf/$(arg role_name)/trajectory"/>
+    </node>
 
 
     <node pkg="perception" type="kalman_filter.py" name="kalman_filter_node" output="screen">

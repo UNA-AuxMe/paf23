@@ -50,7 +50,7 @@ class Passthrough(CompatibleNode):
         topic_type=Float32,
     )
 
-    mapped_topics = [target_velocity, trajectory, position, heading]
+    mapped_topics = [target_velocity, position, heading]  # trajectory
 
     def __init__(self):
         self.publishers: Dict[str, Publisher] = {}

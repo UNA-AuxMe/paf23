@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Path1
         - /MarkerArray1
       Splitter Ratio: 0.5
     Tree Height: 622
@@ -168,7 +169,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /paf/hero/trajectory
+      Topic: /paf/acting/trajectory
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -291,7 +292,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 17.68105125427246
+      Distance: 29.833232879638672
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -307,9 +308,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.2103978395462036
+      Pitch: 1.130397915840149
       Target Frame: <Fixed Frame>
-      Yaw: 3.4253954887390137
+      Yaw: 2.7503859996795654
     Saved: ~
 Window Geometry:
   Camera:
