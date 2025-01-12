@@ -107,7 +107,6 @@ class MappingDataIntegrationNode(CompatibleNode):
                 flags=flags,
             )
             lidar_entities.append(e)
-
         return lidar_entities
 
     def create_hero_entity(self) -> Optional[Car]:

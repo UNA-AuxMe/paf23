@@ -47,4 +47,4 @@ services:
       - ../:/workspace/
     networks:
       - ros
-    command: bash -c "rosmsg list && cd /catkin_ws && catkin_make -DCATKIN_WHITELIST_PACKAGES="sim" && roslaunch sim sim.launch"
+    command: bash -c "rosmsg list && cd /catkin_ws &&catkin_make -DCATKIN_WHITELIST_PACKAGES="sim"  && catkin_make -DCATKIN_WHITELIST_PACKAGES="mapping" && roslaunch sim sim.launch"
