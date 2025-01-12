@@ -52,7 +52,7 @@ $$
 The meaning of the symbols used in the vector and their calculation is explained in the following table:
 
 $$
-\begin{array}{ c | l | l }
+\begin{array}{ c l l }
   \text{symbol} & \text{description} & \text{calculation} \\
   x & \text{x-position} & x + v_x \cdot \Delta t \\
   y & \text{y-position} & y + v_y \cdot \Delta t \\
@@ -63,7 +63,7 @@ $$
 \end{array}
 $$
 
-After an initialization (of $x^+(0)$ and $P^{+}(0)$) the algorithm for the Kalman Filter consists of two steps which get repeated over and over:
+After an initialization (of $x^+(0)$ and $P^+(0)$ ) the algorithm for the Kalman Filter consists of two steps which get repeated over and over:
 
 ### 1. Prediction (KF)
 
@@ -98,7 +98,7 @@ The estimated state gets compared to the measured values. The state and its cova
 
 $K(k) = P^-(k)C^T(k) [R(k) + C(k)P^-(k)C^T(k)]^{-1}$
 
-$\^{x}^+(k) = \^{x}^-(k) + K(k) [y(k) - C(k)\^{x}^-(k)]$
+$x^+(k) = x^-(k) + K(k) [y(k) - C(k)x^-(k)]$
 
 $P^+(k) = [I - K(k)C(k)]P^-(k) [I - K(k)C(k)]^T + K(k)R(k)K^T(k)$
 
@@ -181,7 +181,7 @@ The meaning of the symbols used in the vector and their calculation is explained
 
 $$
 \begin{array}{ c l l c }
-  \text{symbol} & \text{description} & \text{calculation} & \text{function} \\ \hline
+  \text{symbol} & \text{description} & \text{calculation} & \text{function} \\
   x & \text{x-position} & x + v \cdot cos(\varphi) \cdot \Delta t + \frac{1}{2} \cdot a \cdot cos(\varphi) \cdot {\Delta t}^2 & f_1 \\
   y & \text{y-position} & y + v \cdot sin(\varphi) \cdot \Delta t + \frac{1}{2} \cdot a \cdot sin(\varphi) \cdot {\Delta t}^2 & f_2 \\
   v & \text{velocity} & v + a \cdot \Delta t & f_3 \\
@@ -194,13 +194,13 @@ $$
 As the filter is now non-linear it is called an **Extended Kalman Filter**.
 However the basic steps of a Kalman Filter are still maintained even though the formulas are slightly different.
 
-After an initialization (of $\^{x}^+(0)$ and $P^+(0)$) the algorithm consists of the same two steps as before which get repeated over and over:
+After an initialization (of $x^+(0)$ and $P^+(0)$ ) the algorithm consists of the same two steps as before which get repeated over and over:
 
 ### 1. Prediction (EKF)
 
-$\^{x}^-(k) = f_D(\^{x}^+(k-1))$
+$x^-(k) = f_D(x^+(k-1))$
 
-$P^-(k) = A(k-1) P^+(k-1)A^T(k-1) + Q(k-1)$ with $A(k-1) = \frac{\delta f_D}{\delta x} \vert_{\^{x}^+(k-1)}$
+$P^-(k) = A(k-1) P^+(k-1)A^T(k-1) + Q(k-1)$ with $A(k-1) = \frac{\delta f_D}{\delta x} \vert_{x^+(k-1)}$
 
 The formula for the matrix $A$ might look a bit intimidating but like mentioned before we just need to calculate the Jacobi matrix.
 
@@ -211,7 +211,10 @@ A =
     ... & ... & ... & ... & ... \\
     \frac{\delta f_6}{\delta x} & \frac{\delta f_6}{\delta y} & \frac{\delta f_6}{\delta v} & ... & \frac{\delta f_6}{\delta \dot{\varphi}} \\
 \end{bmatrix}
-= 
+$$
+
+$$
+A = 
 \begin{bmatrix}
     1 & 0 & cos(\varphi) \cdot \Delta t & \frac{1}{2} \cdot cos(\varphi) \Delta t^2 & -v \cdot \Delta t sin(\varphi) - \frac{1}{2} \cot a \cdot \Delta t^2 \cdot sin(\varphi) & 0 \\
     0 & 1 & sin(\varphi) \cdot \Delta t & \frac{1}{2} \cdot sin(\varphi) \Delta t^2 & v \cdot \Delta t cos(\varphi) + \frac{1}{2} \cot a \cdot \Delta t^2 \cdot cos(\varphi) & 0 \\
@@ -223,9 +226,9 @@ $$
 
 ### 2. Correction (EKF)
 
-$K(k) = P^-(k)C^T(k) [R(k) + C(k)P^-(k)C^T(k)]^{-1}$ with $C(k) = \frac{\delta g}{\delta x} \vert_{\^{x}^-(k)}$
+$K(k) = P^-(k)C^T(k) [R(k) + C(k)P^-(k)C^T(k)]^{-1}$ with $C(k) = \frac{\delta g}{\delta x} \vert_{x^-(k)}$
 
-$\^{x}^+(k) = \^{x}^-(k) + K(k) [y(k) - g(\^{x}^-(k))]$
+$x^+(k) = x^-(k) + K(k) [y(k) - g(x^-(k))]$
 
 $P^+(k) = [I - K(k)C(k)]P^-(k) [I - K(k)C(k)]^T + K(k)R(k)K^T(k)$
 
