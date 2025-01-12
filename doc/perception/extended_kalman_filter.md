@@ -54,7 +54,6 @@ The meaning of the symbols used in the vector and their calculation is explained
 $$
 \begin{array}{ c l l }
   \text{symbol} & \text{description} & \text{calculation} \\
-  \hline
   x & \text{x-position} & x + v_x \cdot \Delta t \\
   y & \text{y-position} & y + v_y \cdot \Delta t \\
   v_x & \text{velocity in x-direction} & v_x \text{ (const.)}\\
@@ -64,14 +63,14 @@ $$
 \end{array}
 $$
 
-After an initialization (of $\^{x}^+(0)$ and $P^+(0)$) the algorithm for the Kalman Filter consists of two steps which get repeated over and over:
+After an initialization (of $\hat{x^+}(0)$ and $P^+(0)$) the algorithm for the Kalman Filter consists of two steps which get repeated over and over:
 
 ### 1. Prediction (KF)
 
 The state and its covariance matrix (the uncertainty of the state) are estimated. The formulas can be seen below (assuming there are no external inputs).
 The ^ above the $x$ represents that it's an estimate and not the true state of the system.
 
-$\hat{x}^{-}(k) = A(k-1) \hat{x}^{+}(k-1)$
+${\hat{x}}^{-}(k) = A(k-1) \hat{x}^{+}(k-1)$
 
 $P^-(k) = A(k-1) P^+(k-1)A^T(k-1) + Q(k-1)$
 
