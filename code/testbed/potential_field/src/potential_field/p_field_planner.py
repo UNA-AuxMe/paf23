@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-
-
+import ros_compatibility as roscomp
+from ros_compatibility.node import CompatibleNode
 import rospy
-from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseStamped
-import math
+
 import numpy as np
 from sim.msg import (
     VehicleCtrl,
@@ -16,24 +14,37 @@ from sim.msg import (
     MultiPath,
 )
 
+from acting.trajectory_modifier import TrajectoryModifier
+
 
 from typing import Tuple, List
+from numpy.typing import NDArray
 
 
-class PotentialField:
+class PotentialField(CompatibleNode, TrajectoryModifier):
     multi_path: List[List[Tuple[float, float]]] = []
 
     def __init__(self):
-        rospy.init_node("potential_field")
-        self.ctrl_pub = rospy.Publisher("vehicle_ctrl", VehicleCtrl, queue_size=10)
-        self.multi_path_pub = rospy.Publisher("multi_path", MultiPath, queue_size=10)
+        CompatibleNode.__init__(self, "potential_field")
+        TrajectoryModifier.__init__(self, self)
+        self.ctrl_pub = self.new_publisher(
+            msg_type=VehicleCtrl, topic="vehicle_ctrl", qos_profile=10
+        )
+        self.multi_path_pub = self.new_publisher(
+            msg_type=MultiPath, topic="multi_path", qos_profile=10
+        )
 
-        rospy.Subscriber("info", VehicleInfo, self._info_callback)
-        rospy.Subscriber("entities", Entities, self._entities_callback)
-
-        rospy.Subscriber("/paf/planning/trajectory", Path, self.__set_path)
-        self.trajectory_pub = rospy.Publisher(
-            "/paf/acting/trajectory", Path, queue_size=10
+        self.new_subscription(
+            msg_type=VehicleInfo,
+            topic="info",
+            callback=self._info_callback,
+            qos_profile=10,
+        )
+        self.new_subscription(
+            msg_type=Entities,
+            topic="entities",
+            callback=self._entities_callback,
+            qos_profile=10,
         )
 
         self.car_position: Tuple[float, float] = (0, 0)
@@ -42,9 +53,8 @@ class PotentialField:
         self.obstacles: List[Entities] = []
 
         rate_hz = 20
-        duration = rospy.Duration(1.0 / rate_hz)
-        self.dt = duration.to_sec()
-        rospy.timer.Timer(duration, lambda _: self.update())
+        self.dt = 1.0 / rate_hz
+        self.new_timer(self.dt, lambda _: self.update())
 
     def force_vector(self, x: float, y: float) -> Tuple[float, float]:
         cumulative = np.zeros((2))
@@ -117,26 +127,22 @@ class PotentialField:
         )  # Rotate and then translate
         return world_position
 
-    def __set_path(self, msg: Path):
-        pose: PoseStamped
-        for pose in msg.poses:
-            x, y = (pose.pose.position.x, pose.pose.position.y)
+    def modify_path(self, positions: NDArray) -> bool:
+
+        for i, position in enumerate(positions):
+            x, y = position
             force = self.force_vector(x, y)
-            pose.pose.position.x = x - force[0]
-            pose.pose.position.y = y - force[1]
+            positions[i] -= force
 
-            self.multi_path.append(
-                [(x, y), (pose.pose.position.x, pose.pose.position.y)]
-            )
+            self.multi_path.append([(x, y), (positions[i][0], positions[i][1])])
 
-        self.multi_path.append(
-            [(pose.pose.position.x, pose.pose.position.y) for pose in msg.poses]
-        )
+        self.multi_path.append([(position[0], position[1]) for position in positions])
 
-        self.trajectory_pub.publish(msg)
+        return True
 
 
 if __name__ == "__main__":
+    roscomp.init("pot_field")
 
     pf = PotentialField()
-    rospy.spin()
+    pf.spin()

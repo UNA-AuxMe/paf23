@@ -60,8 +60,8 @@ class Simulation:
         self.throttle: float = 1.0
         self.brake: float = 0.0
 
-        car_start_x: float = 30
-        car_start_y: float = 100
+        car_start_x: float = rospy.get_param("car_start_x", 30)
+        car_start_y: float = rospy.get_param("car_start_y", 100)
         car_start_theta: float = -math.pi / 2
         self.car = ScreenCar(car_start_x, car_start_y, car_start_theta, screen_factor)
 
@@ -110,7 +110,6 @@ class Simulation:
         """
 
     def update(self):
-        self.trajectory.publish_trajectory()
         self._publish_position()
         self._publish_entities()
         self._publish_target()

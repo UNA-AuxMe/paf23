@@ -1,8 +1,33 @@
 <launch>
-    <include file="$(find control)/launch/control.launch">
-    </include>
-   
-    <node pkg="sim" type="car_sim.py" name="car_sim" output="screen" />
-    
-    <node pkg="potential_field" type="p_field_planner.py" name="pot_planner" output="screen" />
+    <arg name="start_x" default="30" />
+    <arg name="start_y" default="100" />
+
+
+    <include file="$(find acting)/launch/acting.launch">
+    </include> <!--This
+    also launches control.-->
+
+    <node pkg="acting" type="trajectory_debug_source.py"
+        name="traj_debug_source"
+        output="screen">
+        <param name="output_topic_name" value="/paf/planning/trajectory" />
+        <param
+            name="default_source_name" value="lanechange" />
+        <param name="trajectory_source"
+            value="lanechange" />
+        <param name="origin_x" value="$(arg start_x)" />
+        <param name="origin_y"
+            value="$(arg start_y)" />
+    </node>
+
+    <node pkg="sim" type="car_sim.py" name="car_sim" output="screen">
+        <param name="car_start_x" value="$(arg start_x)" />
+        <param name="car_start_y"
+            value="$(arg start_y)" />
+    </node>
+
+    <node pkg="potential_field" type="p_field_planner.py" name="pot_planner" output="screen">
+        <param name="input_topic_name" value="paf/planning/trajectory" />
+        <param name="output_topic_name" value="paf/acting/trajectory" />
+    </node>
 </launch>
