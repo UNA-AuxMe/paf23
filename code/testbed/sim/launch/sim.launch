@@ -32,10 +32,15 @@
             value="$(arg start_y)" />
     </node>
 
+    <!--
     <node pkg="potential_field" type="p_field_planner.py" name="pot_planner" output="screen">
         <param name="input_topic_name" value="paf/planning/trajectory" />
         <param name="output_topic_name" value="paf/acting/trajectory" />
     </node>
+    -->
+
+    <include file="$(find teb_planner)/launch/teb_planner.launch">
+    </include>
 
 
 </launch>

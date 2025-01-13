@@ -47,4 +47,17 @@ services:
       - ../:/workspace/
     networks:
       - ros
-    command: bash -c "rosmsg list && cd /catkin_ws &&catkin_make -DCATKIN_WHITELIST_PACKAGES="sim"  && catkin_make -DCATKIN_WHITELIST_PACKAGES="mapping" && roslaunch sim sim.launch"
+    command: |-
+      bash -c "\
+      rosmsg list && \
+      sudo apt-get -y install ros-noetic-teb-local-planner &&\
+      cd /catkin_ws/src/code &&\
+      cd /catkin_ws &&\
+      catkin_make -DCATKIN_WHITELIST_PACKAGES="teb_planner_pa_msgs"  && \
+      catkin_make -DCATKIN_WHITELIST_PACKAGES="teb_planner_pa"  && \
+      source devel/setup.bash &&\
+      cd /catkin_ws &&\
+      catkin_make -DCATKIN_WHITELIST_PACKAGES="sim"  && \
+      catkin_make -DCATKIN_WHITELIST_PACKAGES="mapping" &&\
+      roslaunch sim sim.launch"
+  # git clone https://github.com/TUC-ProAut/ros_teb_planner.git &&\

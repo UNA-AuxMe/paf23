@@ -79,15 +79,15 @@ class Simulation:
             "carla/hero/Speed", CarlaSpeedometer, queue_size=10
         )
         self.target_velocity_pub = rospy.Publisher(
-            "paf/acting/target_velocity", Float32, queue_size=10
+            "paf/hero/target_velocity", Float32, queue_size=10
         )
 
         self.current_pos_pub = rospy.Publisher(
-            "paf/acting/current_pos", PoseStamped, queue_size=10
+            "paf/hero/current_pos", PoseStamped, queue_size=10
         )
 
         self.current_heading_pub = rospy.Publisher(
-            "paf/acting/current_heading", Float32, queue_size=10
+            "paf/hero/current_heading", Float32, queue_size=10
         )
 
         self.entities_pub = rospy.Publisher("entities", Entities, queue_size=10)

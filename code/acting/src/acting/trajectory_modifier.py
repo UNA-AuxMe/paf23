@@ -38,14 +38,18 @@ class TrajectoryModifier(ABC):
         positions = np.array(
             [[pose.pose.position.x, pose.pose.position.y] for pose in path.poses]
         )
-        if self.modify_path(positions):
-            pose: PoseStamped
-            for i, pose in enumerate(path.poses):
-                pose.pose.position.x, pose.pose.position.y = positions[i]
+        positions = self.modify_path(positions)
+        path.poses.clear()
+        for position in positions:
+            pose = PoseStamped()
+            pose.header.frame_id = "global"
+            pose.pose.position.x, pose.pose.position.y = position
+            pose.pose.orientation.w = 1.0
+            path.poses.append(pose)
 
         self.publisher.publish(path)
 
     @abstractmethod
-    def modify_path(self, positions: NDArray) -> bool:
+    def modify_path(self, positions: NDArray) -> NDArray:
         roscomp.logerr("There must be a modify_path definition in your class.")
-        return False
+        return positions

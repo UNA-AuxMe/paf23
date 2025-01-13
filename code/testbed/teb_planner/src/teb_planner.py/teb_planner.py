@@ -1,32 +1,39 @@
 #!/usr/bin/env python
+
+
 import ros_compatibility as roscomp
 from ros_compatibility.node import CompatibleNode
 import rospy
-
-from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float32
+from geometry_msgs.msg import PoseStamped, Pose, Point32
+from nav_msgs.msg import Path
 
+from costmap_converter.msg import ObstacleArrayMsg, ObstacleMsg
+from teb_planner_pa_msgs.srv import PlanRequest, PlanResponse, Plan
+
+
+import numpy as np
 from sim.msg import (
     Vector2D,
     VisPath,
     MultiPath,
 )
+
 from mapping.msg import Map as MapMsg
 from mapping_common.entity import Entity
 from mapping_common.map import Map
 
 from acting.trajectory_modifier import TrajectoryModifier
-import numpy as np
 
 from typing import Tuple, List, Optional
 from numpy.typing import NDArray
 
 
-class PotentialField(CompatibleNode, TrajectoryModifier):
+class TebPlanner(CompatibleNode, TrajectoryModifier):
     multi_path: List[List[Tuple[float, float]]] = []
 
     def __init__(self):
-        CompatibleNode.__init__(self, "potential_field")
+        CompatibleNode.__init__(self, "teb_planner")
         TrajectoryModifier.__init__(self, self)
 
         self.multi_path_pub = self.new_publisher(
@@ -53,6 +60,9 @@ class PotentialField(CompatibleNode, TrajectoryModifier):
             callback=self._map_callback,
             qos_profile=1,
         )
+        self.plan_service = rospy.ServiceProxy(
+            name="/teb_planner_node_pa/plan", service_class=Plan
+        )
 
         self.car_position: Tuple[float, float] = (0, 0)
         self.car_theta: float = 0.0
@@ -67,13 +77,6 @@ class PotentialField(CompatibleNode, TrajectoryModifier):
         self.map = Map.from_ros_msg(map_msg)
 
     def _update(self):
-        force_x, force_y = self.force_vector(0, 0)  # car is at 0,0 for this
-        w_f_x, w_f_y = self._car_to_world(force_x, force_y)
-        path: List[Tuple[float, float]] = [
-            self.car_position,
-            (w_f_x, w_f_y),
-        ]
-        self.multi_path.append(path)
         self.show_multi_path(self.multi_path)
         self.multi_path = []
 
@@ -83,20 +86,6 @@ class PotentialField(CompatibleNode, TrajectoryModifier):
 
     def _heading_callback(self, msg: Float32):
         self.car_theta = msg.data
-
-    def force_vector(self, x: float, y: float) -> Tuple[float, float]:
-        cumulative = np.zeros((2))
-        if self.map is None:
-            return cumulative
-
-        obstacles = self.map.entities_without_hero()
-        for obstacle in obstacles:
-            distance = self._distance(x, y, obstacle)
-            direction = self._direction_towards(x, y, obstacle)
-            if distance == 0:
-                continue
-            cumulative += 2 * direction * 1 / distance
-        return cumulative
 
     def show_multi_path(self, multi_path: List[List[Tuple[float, float]]]) -> None:
         msg = MultiPath()
@@ -108,24 +97,7 @@ class PotentialField(CompatibleNode, TrajectoryModifier):
             msg.paths.append(vis_path)
         self.multi_path_pub.publish(msg)
 
-    def _distance(self, x: float, y: float, ent: Entity):
-        pos1 = np.array([x, y])
-        x = ent.transform.translation().x()
-        y = ent.transform.translation().y()
-        pos2 = self._car_to_world(x, y)
-        return np.linalg.norm(pos1 - pos2)
-
-    def _direction_towards(self, x: float, y: float, ent: Entity):
-        pos1 = np.array([x, y])
-        x = ent.transform.translation().x()
-        y = ent.transform.translation().y()
-        pos2 = self._car_to_world(x, y)
-        d: float = np.linalg.norm(pos2 - pos1)
-        if d == 0.0:
-            return pos2 - pos1
-        return (pos2 - pos1) / d
-
-    def _car_to_world(self, x: float, y: float) -> NDArray:
+    def _car_to_world(self, x: float, y: float):
         car_x, car_y = self.car_position
         car_phi = self.car_theta
         translation = np.array([car_x, car_y])
@@ -139,21 +111,58 @@ class PotentialField(CompatibleNode, TrajectoryModifier):
         return world_position
 
     # overrides superclass
-    def modify_path(self, positions: NDArray) -> NDArray:
-        for i, position in enumerate(positions):
-            x, y = position
-            force = self.force_vector(x, y)
-            positions[i] -= force
+    def modify_path(self, positions: NDArray) -> bool:
+        if self.map is None:
+            return positions
 
-            self.multi_path.append([(x, y), (positions[i][0], positions[i][1])])
+        req = PlanRequest()
+        start = Pose()
+        start.position.x, start.position.y = self.car_position
+        start.orientation.z = 1.0  # ???
+        req.request.start = start
 
-        self.multi_path.append([(position[0], position[1]) for position in positions])
+        goal = Pose()
+        goal.position.x, goal.position.y = positions[-1]
+        goal.orientation.z = 1.0  # ???
+        req.request.goal = goal
+
+        for position in positions:
+            pos = PoseStamped()
+            pos.pose.position.x, pos.pose.position.y = position
+            pos.pose.orientation.z = 1.0  # ???
+            req.request.initial_plan.poses.append(pos)
+
+        obst = ObstacleArrayMsg()
+        obstacles = self.map.entities_without_hero()
+        for obstacle in obstacles:
+            ob = ObstacleMsg()
+            x = obstacle.transform.translation().x()
+            y = obstacle.transform.translation().y()
+            x, y = self._car_to_world(x, y)
+            ob.polygon.points.append(Point32(x=x, y=y))
+            ob.orientation.w = 1
+            obst.obstacles.append(ob)
+        req.request.obstacles = obst
+
+        response: PlanResponse = self.plan_service.call(req)
+
+        self.multi_path.append(
+            [
+                (pose.pose.position.x, pose.pose.position.y)
+                for pose in response.respond.path.poses
+            ]
+        )
+        positions = np.array(
+            [
+                [pose.pose.position.x, pose.pose.position.y]
+                for pose in response.respond.path.poses
+            ]
+        )
 
         return positions
 
 
 if __name__ == "__main__":
     roscomp.init("pot_field")
-
-    pf = PotentialField()
-    pf.spin()
+    teb = TebPlanner()
+    teb.spin()
