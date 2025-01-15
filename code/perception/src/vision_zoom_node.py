@@ -3,11 +3,10 @@
 from ros_compatibility.node import CompatibleNode
 import ros_compatibility as roscomp
 import torch
-
-# from torchvision.models.segmentation import (
-#     DeepLabV3_ResNet101_Weights,
-#     deeplabv3_resnet101,
-# )
+from torchvision.models.segmentation import (
+    DeepLabV3_ResNet101_Weights,
+    deeplabv3_resnet101,
+)
 from torchvision.models.detection.faster_rcnn import (
     FasterRCNN_MobileNet_V3_Large_320_FPN_Weights,
     FasterRCNN_ResNet50_FPN_V2_Weights,
@@ -23,21 +22,15 @@ from std_msgs.msg import Header, Float32MultiArray
 from cv_bridge import CvBridge
 from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 import numpy as np
-
-# from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
-from ultralytics import YOLO
+from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
 import asyncio
 import rospy
 from ultralytics.utils.ops import scale_masks
 
 from copy import deepcopy
-<<<<<<< HEAD
-=======
-from time import time_ns
->>>>>>> 181790ed (added code for determination of reliability)
 
 
-class VisionNode(CompatibleNode):
+class VisionZoomNode(CompatibleNode):
     """
     VisionNode:
 
@@ -53,53 +46,45 @@ class VisionNode(CompatibleNode):
 
         # dictionary of pretrained models
         self.model_dict = {
-            # "frcnn_resnet50_fpn_v2": (
-            #     fasterrcnn_resnet50_fpn_v2(
-            #         weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
-            #     ),
-            #     FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT,
-            #     "detection",
-            #     "pyTorch",
-            # ),
-            # "frcnn_mobilenet_v3_large_320_fpn": (
-            #     fasterrcnn_mobilenet_v3_large_320_fpn(
-            #         weights=FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT
-            #     ),
-            #     FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT,
-            #     "detection",
-            #     "pyTorch",
-            # ),
-            # "deeplabv3_resnet101": (
-            #     deeplabv3_resnet101(weights=DeepLabV3_ResNet101_Weights.DEFAULT),
-            #     DeepLabV3_ResNet101_Weights.DEFAULT,
-            #     "segmentation",
-            #     "pyTorch",
-            # ),
-            # "yolov8n": (YOLO, "yolov8n.pt", "detection", "ultralytics"),
-            # "yolov8s": (YOLO, "yolov8s.pt", "detection", "ultralytics"),
-            # "yolov8m": (YOLO, "yolov8m.pt", "detection", "ultralytics"),
-            # "yolov8l": (YOLO, "yolov8l.pt", "detection", "ultralytics"),
-            # "yolov8x": (YOLO, "yolov8x.pt", "detection", "ultralytics"),
-            # "yolo_nas_l": (NAS, "yolo_nas_l.pt", "detection", "ultralytics"),
-            # "yolo_nas_m": (NAS, "yolo_nas_m.pt", "detection", "ultralytics"),
-            # "yolo_nas_s": (NAS, "yolo_nas_s.pt", "detection", "ultralytics"),
-            # "rtdetr-l": (RTDETR, "rtdetr-l.pt", "detection", "ultralytics"),
-            # "rtdetr-x": (RTDETR, "rtdetr-x.pt", "detection", "ultralytics"),
-            # "yolov8x-seg": (YOLO, "yolov8x-seg.pt", "segmentation", "ultralytics"),
-            # "sam_l": (SAM, "sam_l.pt", "detection", "ultralytics"),
-            # "FastSAM-x": (FastSAM, "FastSAM-x.pt", "detection", "ultralytics"),
-<<<<<<< HEAD
+            "frcnn_resnet50_fpn_v2": (
+                fasterrcnn_resnet50_fpn_v2(
+                    weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
+                ),
+                FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT,
+                "detection",
+                "pyTorch",
+            ),
+            "frcnn_mobilenet_v3_large_320_fpn": (
+                fasterrcnn_mobilenet_v3_large_320_fpn(
+                    weights=FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT
+                ),
+                FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT,
+                "detection",
+                "pyTorch",
+            ),
+            "deeplabv3_resnet101": (
+                deeplabv3_resnet101(weights=DeepLabV3_ResNet101_Weights.DEFAULT),
+                DeepLabV3_ResNet101_Weights.DEFAULT,
+                "segmentation",
+                "pyTorch",
+            ),
+            "yolov8n": (YOLO, "yolov8n.pt", "detection", "ultralytics"),
+            "yolov8s": (YOLO, "yolov8s.pt", "detection", "ultralytics"),
+            "yolov8m": (YOLO, "yolov8m.pt", "detection", "ultralytics"),
+            "yolov8l": (YOLO, "yolov8l.pt", "detection", "ultralytics"),
+            "yolov8x": (YOLO, "yolov8x.pt", "detection", "ultralytics"),
+            "yolo_nas_l": (NAS, "yolo_nas_l.pt", "detection", "ultralytics"),
+            "yolo_nas_m": (NAS, "yolo_nas_m.pt", "detection", "ultralytics"),
+            "yolo_nas_s": (NAS, "yolo_nas_s.pt", "detection", "ultralytics"),
+            "rtdetr-l": (RTDETR, "rtdetr-l.pt", "detection", "ultralytics"),
+            "rtdetr-x": (RTDETR, "rtdetr-x.pt", "detection", "ultralytics"),
+            "yolov8x-seg": (YOLO, "yolov8x-seg.pt", "segmentation", "ultralytics"),
+            "sam_l": (SAM, "sam_l.pt", "detection", "ultralytics"),
+            "FastSAM-x": (FastSAM, "FastSAM-x.pt", "detection", "ultralytics"),
             "yolo11n-seg": (YOLO, "yolo11n-seg.pt", "segmentation", "ultralytics"),
-            # "yolo11s-seg": (YOLO, "yolo11s-seg.pt", "segmentation", "ultralytics"),
-            # "yolo11m-seg": (YOLO, "yolo11m-seg.pt", "segmentation", "ultralytics"),
-            # "yolo11l-seg": (YOLO, "yolo11l-seg.pt", "segmentation", "ultralytics"),
-=======
-            # "yolo11n-seg": (YOLO, "yolo11n-seg.pt", "segmentation", "ultralytics"),
-            # "yolo11s-seg": (YOLO, "yolo11s-seg.pt", "segmentation", "ultralytics"),
-            # "yolo11m-seg": (YOLO, "yolo11m-seg.pt", "segmentation", "ultralytics"),
-            # "yolo11l-seg": (YOLO, "yolo11l-seg.pt", "segmentation", "ultralytics"),
-            "yolo11x-seg": (YOLO, "yolo11x-seg.pt", "segmentation", "ultralytics"),
->>>>>>> 181790ed (added code for determination of reliability)
+            "yolo11s-seg": (YOLO, "yolo11s-seg.pt", "segmentation", "ultralytics"),
+            "yolo11m-seg": (YOLO, "yolo11m-seg.pt", "segmentation", "ultralytics"),
+            "yolo11l-seg": (YOLO, "yolo11l-seg.pt", "segmentation", "ultralytics"),
         }
 
         # general setup
@@ -158,10 +143,6 @@ class VisionNode(CompatibleNode):
         if self.framework == "ultralytics":
             self.model = self.model(self.weights)
 
-        self.timeArray = []
-        self.benchTime = False
-        self.index = 1
-
     def setup_camera_subscriptions(self, side):
         """
         sets up a subscriber to the selected camera angle
@@ -201,7 +182,7 @@ class VisionNode(CompatibleNode):
         if self.center:
             self.publisher_center = self.new_publisher(
                 msg_type=numpy_msg(ImageMsg),
-                topic=f"/paf/{self.role_name}/Center/segmented_image",
+                topic=f"/paf/{self.role_name}/Zoom/segmented_image",
                 qos_profile=1,
             )
         if self.back:
@@ -272,13 +253,13 @@ class VisionNode(CompatibleNode):
         # publish img to corresponding angle topic
         header_id = rospy.resolve_name(img_msg.header.frame_id)
         if (
-            "Center" in header_id
+            "Zoom" in header_id
             or "Back" in header_id
             or "Left" in header_id
             or "Right" in header_id
         ):
             side = header_id.split("/")[2]
-            if side == "Center":
+            if side == "Zoom":
                 self.publisher_center.publish(img_msg)
             if side == "Back":
                 self.publisher_back.publish(img_msg)
@@ -535,14 +516,13 @@ class VisionNode(CompatibleNode):
     async def process_traffic_lights(self, prediction, cv_image, image_header):
         indices = (prediction.boxes.cls == 9).nonzero().squeeze().cpu().numpy()
         indices = np.asarray([indices]) if indices.size == 1 else indices
+
         max_y = 360  # middle of image
-        min_prob = 5
+        min_prob = 0.20
 
         for index in indices:
             box = prediction.boxes.cpu().data.numpy()[index]
-            print(
-                f"box 0, 1, 2, 3, 4: {box[0]}, {box[1]}, {box[2]}, {box[3]}, {box[4]}"
-            )
+
             if box[4] < min_prob:
                 continue
 
@@ -626,6 +606,6 @@ class VisionNode(CompatibleNode):
 
 
 if __name__ == "__main__":
-    roscomp.init("VisionNode")
-    node = VisionNode("VisionNode")
+    roscomp.init("VisionZoomNode")
+    node = VisionNode("VisionZoomNode")
     node.run()

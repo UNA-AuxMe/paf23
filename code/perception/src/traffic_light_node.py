@@ -23,7 +23,10 @@ class TrafficLightNode(CompatibleNode):
         # general setup
         self.bridge = CvBridge()
         self.role_name = self.get_param("role_name", "hero")
-        self.side = self.get_param("side", "Center")
+        self.side = self.get_param("side", "Zoom")
+        print("------------------------------------------------------------------")
+        print(f"traffic_light_node.py -> self.side: {self.side}")
+        print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         self.classifier = TrafficLightInference(self.get_param("model", ""))
         self.last_info_time: datetime = None
         self.last_state = None
@@ -69,7 +72,7 @@ class TrafficLightNode(CompatibleNode):
 
     def handle_camera_image(self, image):
         distance = int(image.header.frame_id)
-
+        print("something happens in handel_camera_image")
         cv2_image = self.bridge.imgmsg_to_cv2(image)
         rgb_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
         result, data = self.classifier(cv2_image)
@@ -80,12 +83,15 @@ class TrafficLightNode(CompatibleNode):
             or data[0][0] > 1e-10
             or data[0][3] > 1e-10
         ):
+            print("returned via if-statement ------------------")
             return  # too uncertain, may not be a traffic light
 
         if not is_front(rgb_image):
+            print("not front facing +++++++++++++++++++++++++")
             return  # not a front facing traffic light
 
         state = result if result in [1, 2, 4] else 0
+        print(f"traffic_light_state: {state}")
         if self.last_state == state:
             # 1: Green, 2: Red, 4: Yellow, 0: Unknown
             msg = TrafficLightState()

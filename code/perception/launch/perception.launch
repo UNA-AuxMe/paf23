@@ -33,6 +33,7 @@
   </node>
 
   <node pkg="perception" type="vision_node.py" name="VisionNode" output="screen">
+    <param name="control_loop_rate" value="$(arg control_loop_rate)" />
     <param name="role_name" value="$(arg role_name)" />
     <param name="side" value="Center" />
     <param name="center" value="True" />
@@ -65,7 +66,7 @@
       - yolo11l-seg
       -->
 
-    <param name="model" value="yolo11n-seg" />
+    <param name="model" value="yolo11x-seg" />
   </node>
 
   <node pkg="perception" type="traffic_light_node.py" name="TrafficLightNode" output="screen">
