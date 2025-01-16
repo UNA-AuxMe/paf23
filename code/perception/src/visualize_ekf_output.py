@@ -4,14 +4,14 @@ import matplotlib.pyplot as plt
 import coordinate_transformation
 from math import pi
 
-FILTER_FILE_NAME_START = "55"
-FILTER_FILE_NAME_END = "79"
+FILTER_FILE_NAME_START = "70"
+FILTER_FILE_NAME_END = "82"
 
-EXCLUDE_FILTER_FILE_START = "56"
-EXCLUDE_FILTER_FILE_END = "78"
+EXCLUDE_FILTER_FILE_START = "71"
+EXCLUDE_FILTER_FILE_END = "80"
 
-GT_FILE_NAME = "02"
-SENSOR_FILE_NAME = "02"
+GT_FILE_NAME = "00"
+SENSOR_FILE_NAME = "00"
 
 # open several filter output files
 # -> from data_<FILTER_FILE_NAME_START> to data_<FILTER_FILE_NAME_END>
