@@ -15,6 +15,7 @@ from traffic_light_detection.src.traffic_light_detection.traffic_light_inference
 )
 import cv2
 import numpy as np
+import rospy
 
 
 class TrafficLightNode(CompatibleNode):
@@ -35,6 +36,8 @@ class TrafficLightNode(CompatibleNode):
         # publish / subscribe setup
         self.setup_camera_subscriptions()
         self.setup_traffic_light_publishers()
+
+        self.counter = 0
 
     def setup_camera_subscriptions(self):
         self.new_subscription(
@@ -71,6 +74,8 @@ class TrafficLightNode(CompatibleNode):
                 self.last_info_time = None
 
     def handle_camera_image(self, image):
+        self.counter += 1
+        rospy.logfatal(f"Erkannte Ampeln: {self.counter}")
         distance = int(image.header.frame_id)
         print("something happens in handel_camera_image")
         cv2_image = self.bridge.imgmsg_to_cv2(image)

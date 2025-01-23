@@ -58,15 +58,9 @@
             "chromatic_aberration_intensity": 0.5,
             "chromatic_aberration_offset": 0.0
           },
-          "image_size_x": 1280,
+          "image_size_x": 720,
           "image_size_y": 720,
-          "fov": 30,
-          "attached_objects": [
-            {
-              "type": "actor.pseudo.control",
-              "id": "control"
-            }
-          ]
+          "fov": 30
         },
         {
           "type": "sensor.lidar.ray_cast",

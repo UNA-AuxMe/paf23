@@ -13,3 +13,6 @@ code/output
 __pycache__/
 
 *.tsv
+code/yolo11n-seg.pt
+code/yolo11l-seg.pt
+code/yolo11x-seg.pt
