@@ -205,7 +205,7 @@ class VisionNode(CompatibleNode):
             output[0].boxes.cls.to(torch.int).cpu().numpy()  # type: ignore
         ]
 
-        masks = torch.tensor(output[0].masks.data)
+        masks = output[0].masks.data.clone().detach()  # type: ignore
         scaled_masks = scale_masks(
             masks.unsqueeze(1), cv_image.shape[:2], True
         ).squeeze(1)
@@ -222,17 +222,14 @@ class VisionNode(CompatibleNode):
         )
         if clustered_points is None or clustered_points.size == 0:
             return None
-        try:
-            self.publish_distance_output(clustered_points, carla_classes_indices)
-            clustered_lidar_points_msg = array_to_clustered_points(
-                clustered_points,
-                cluster_indices,
-                object_class_array=carla_classes_indices,
-            )
-            self.pointcloud_publisher.publish(clustered_lidar_points_msg)
-        except Exception as e:
-            rospy.logerr(f"Error in publishing pointcloud: {e}")
-            return None
+        # self.publish_distance_output(clustered_points, carla_classes_indices)
+        clustered_lidar_points_msg = array_to_clustered_points(
+            clustered_points,
+            cluster_indices,
+            object_class_array=carla_classes_indices,
+        )
+        self.pointcloud_publisher.publish(clustered_lidar_points_msg)
+
         # proceed with traffic light detection
         if 9 in output[0].boxes.cls:
             self.process_traffic_lights(output[0], cv_image, image.header)
@@ -373,7 +370,7 @@ class VisionNode(CompatibleNode):
         )
         return abs_distance
 
-    async def process_traffic_lights(self, prediction, cv_image, image_header):
+    def process_traffic_lights(self, prediction, cv_image, image_header):
         indices = (prediction.boxes.cls == 9).nonzero().squeeze().cpu().numpy()
         indices = np.asarray([indices]) if indices.size == 1 else indices
 
