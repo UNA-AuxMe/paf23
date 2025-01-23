@@ -75,6 +75,7 @@ class MotionPlanning(CompatibleNode):
         self.trajectory: Optional[Path] = None
         self.overtaking = False
         self.current_wp_idx: Optional[int] = None
+        self.closest_idx: Optional[int] = None
         self.enhanced_path = None
         self.current_speed = None
         self.speed_limit = None
@@ -306,7 +307,7 @@ class MotionPlanning(CompatibleNode):
             unstuck (bool, optional): _description_. Defaults to False.
         """
         if (
-            self.current_wp_idx is None
+            self.closest_idx is None
             or self.trajectory is None
             or self.trajectory.poses is None
             or self.map is None
@@ -317,14 +318,14 @@ class MotionPlanning(CompatibleNode):
 
         req = PlanRequest()
 
-        use_self_as_start = False
+        use_self_as_start = True
         if use_self_as_start:
             req.request.start.position.x, req.request.start.position.y = (
                 self.current_pos[:2]
             )
 
         else:
-            req.request.start = self.trajectory.poses[self.current_wp_idx].pose
+            req.request.start = self.trajectory.poses[self.closest_idx].pose
 
         req.request.start.position.z = 0.0
         rotation = R.from_euler("z", self.current_heading, degrees=False).as_quat()
@@ -340,9 +341,9 @@ class MotionPlanning(CompatibleNode):
             The original code however used it as an index which is totally incorrect.
         """
         goal_index = (
-            self.current_wp_idx + NUM_WAYPOINTS_OVERTAKE_UNSTUCK + 10  # NONONO
+            self.closest_idx + NUM_WAYPOINTS_OVERTAKE_UNSTUCK + 10  # NONONO
             if unstuck
-            else self.current_wp_idx + NUM_WAYPOINTS_OVERTAKE + 10  # NONON
+            else self.closest_idx + NUM_WAYPOINTS_OVERTAKE + 10  # NONON
         )
         req.request.goal = self.trajectory.poses[goal_index].pose
         req.request.goal.position.z = 0.0
@@ -373,14 +374,14 @@ class MotionPlanning(CompatibleNode):
         for i in range(len(response.respond.path.poses)):
             response.respond.path.poses[i].header.frame_id = "global"
 
-        self.debug_traj_pub.publish(response.respond.path)
+        # self.debug_traj_pub.publish(response.respond.path)
 
         # goal_index and self.current_wp_idx
         from copy import deepcopy
 
         traj: Path = deepcopy(self.trajectory)
         traj.poses = (
-            traj.poses[: self.current_wp_idx]
+            traj.poses[: self.closest_idx]
             + response.respond.path.poses
             + traj.poses[goal_index:]
         )
@@ -428,7 +429,8 @@ class MotionPlanning(CompatibleNode):
         Returns:
             None: The method updates the self.trajectory attribute with the new path.
         """
-        self.trajectory = self._generate_overtake_trajectory(distance)
+        new_traj = self._generate_overtake_trajectory(distance)
+        self.trajectory = new_traj if new_traj is not None else self.trajectory
         return
         currentwp = self.current_wp_idx
         normal_x_offset = 2
@@ -867,6 +869,32 @@ class MotionPlanning(CompatibleNode):
         else:
             return 0.0
 
+    def __calculate_closest_trajectory_idx(self):
+        if self.current_pos is not None and self.trajectory is not None:
+            self.closest_idx = int(
+                np.argmin(
+                    np.array(
+                        [
+                            self.__dist_to(pose.pose.position)
+                            for pose in self.trajectory.poses
+                        ]
+                    )
+                )
+            )
+
+    def __dist_to(self, pos: Point) -> float:
+        """
+        Distance between current position and target position (only (x,y))
+        :param pos: targeted position
+        :return: distance
+        """
+        x_current = self.current_pos[0]
+        y_current = self.current_pos[1]
+        x_target = pos.x
+        y_target = pos.y
+        d = (x_target - x_current) ** 2 + (y_target - y_current) ** 2
+        return math.sqrt(d)
+
     def run(self):
         """
         Control loop that updates the target speed and publishes the target trajectory
@@ -874,6 +902,7 @@ class MotionPlanning(CompatibleNode):
         """
 
         def loop(timer_event=None):
+            self.__calculate_closest_trajectory_idx()
 
             if (
                 self.__curr_behavior is not None
@@ -881,8 +910,7 @@ class MotionPlanning(CompatibleNode):
                 and self.__corners is not None
             ):
                 self.trajectory.header.stamp = rospy.Time.now()
-                traj = self._generate_overtake_trajectory(0.0)
-                self.traj_pub.publish(traj if traj is not None else self.trajectory)
+                self.traj_pub.publish(self.trajectory)
                 self.update_target_speed(self.__acc_speed, self.__curr_behavior)
             else:
                 self.velocity_pub.publish(0.0)
