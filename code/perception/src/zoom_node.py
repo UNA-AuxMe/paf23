@@ -2,28 +2,22 @@
 
 from ros_compatibility.node import CompatibleNode
 import ros_compatibility as roscomp
-from sklearn.cluster import DBSCAN
 import torch
+import torchvision
+import torchvision.transforms as t
 import cv2
-from vision_node_helper import coco_to_carla, carla_colors
 from rospy.numpy_msg import numpy_msg
 from sensor_msgs.msg import Image as ImageMsg
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Header, Float32MultiArray
 from cv_bridge import CvBridge
-from torchvision.utils import draw_segmentation_masks
+from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 import numpy as np
-from ultralytics import YOLO
-import rospy
-from ultralytics.utils.ops import scale_masks
-from mapping.msg import ClusteredPointsArray
-from perception_utils import array_to_clustered_points
-
-from time import time_ns
-from copy import deepcopy
+from ultralytics import NAS, YOLO, RTDETR, SAM, FastSAM
 import asyncio
+import rospy
 
 
-class VisionNode(CompatibleNode):
+class ZoomNode(CompatibleNode):
     """
     VisionNode:
 
@@ -43,45 +37,38 @@ class VisionNode(CompatibleNode):
             "yolo11x-seg": (YOLO, "yolo11l-seg.pt", "segmentation", "ultralytics"),
         }
 
-        self.timesum = 0
-        self.timenum = 0
-        self.timestart = False
-
         # general setup
         self.bridge = CvBridge()
         self.role_name = self.get_param("role_name", "hero")
-        self.view_camera = self.get_param("view_camera")
-        self.camera_resolution = self.get_param("camera_resolution")
+        self.side = self.get_param("side", "Zoom")
+        self.center = True
+        self.back = self.get_param("back")
+        self.left = self.get_param("left")
+        self.right = self.get_param("right")
 
-        self.depth_images = []
-        self.dist_array = None
-        self.lidar_array = None
-
-        self.setup_subscriber()
-        self.setup_publisher()
-        self.setup_model()
-
-    def setup_subscriber(self):
-        self.new_subscription(
-            msg_type=numpy_msg(ImageMsg),
-            callback=self.handle_camera_image,
-            topic=f"/carla/{self.role_name}/Zoom/image",
-            qos_profile=1,
-        )
-
-    def setup_publisher(self):
-        """
-        sets up all publishers for the Vision-Node
-        """
-
-        self.traffic_light_publisher = self.new_publisher(
-            msg_type=numpy_msg(ImageMsg),
-            topic=f"/paf/{self.role_name}/Zoom/segmented_traffic_light",
-            qos_profile=1,
-        )
-
-    def setup_model(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.depth_images = []
+        self.dist_arrays = None
+
+        # publish / subscribe setup
+        if self.center:
+            self.setup_camera_subscriptions("Zoom")
+        if self.back:
+            self.setup_camera_subscriptions("Back")
+        if self.left:
+            self.setup_camera_subscriptions("Left")
+        if self.right:
+            self.setup_camera_subscriptions("Right")
+
+        # self.setup_rainbow_subscription()
+        self.setup_dist_array_subscription()
+        self.setup_camera_publishers()
+        self.setup_object_distance_publishers()
+        self.setup_traffic_light_publishers()
+        self.image_msg_header = Header()
+        self.image_msg_header.frame_id = "segmented_image_frame"
+
+        # model setup
         model_info = self.model_dict[self.get_param("model")]
         self.model = model_info[0]
         self.weights = model_info[1]
@@ -89,15 +76,107 @@ class VisionNode(CompatibleNode):
         self.framework = model_info[3]
         self.save = True
 
-        print("Zoom Node Configuration:")
+        # print configuration of Vision-Node
+        print("Vision Node Configuration:")
         print("Device -> ", self.device)
         print(f"Model -> {self.get_param('model')},")
         print(f"Type -> {self.type}, Framework -> {self.framework}")
+        torch.cuda.memory.set_per_process_memory_fraction(0.1)
 
+        # pyTorch and CUDA setup
+        if self.framework == "pyTorch":
+            for param in self.model.parameters():
+                param.requires_grad = False
+                self.model.to(self.device)
+
+        # ultralytics setup
         if self.framework == "ultralytics":
             self.model = self.model(self.weights)
-        else:
-            rospy.logerr("Framework not supported")
+        rospy.logfatal("ZoomNode online")
+
+    def setup_camera_subscriptions(self, side):
+        """
+        sets up a subscriber to the selected camera angle
+
+        Args:
+            side (String): Camera angle specified in launch file
+        """
+
+        self.new_subscription(
+            msg_type=numpy_msg(ImageMsg),
+            callback=self.handle_camera_image,
+            topic=f"/carla/{self.role_name}/{side}/image",
+            qos_profile=1,
+        )
+
+    def setup_dist_array_subscription(self):
+        """
+        sets up a subscription to the lidar
+        depth image of the selected camera angle
+        """
+
+        self.new_subscription(
+            msg_type=numpy_msg(ImageMsg),
+            callback=self.handle_dist_array,
+            topic="/paf/hero/Zoom/dist_array",
+            qos_profile=1,
+        )
+
+    def setup_camera_publishers(self):
+        """
+        sets up a publisher to the selected camera angle
+        multiple publishers are used since the vision node could handle
+        multiple camera angles at the same time if enough
+        resources are available
+        """
+
+        if self.center:
+            self.publisher_zoom = self.new_publisher(
+                msg_type=numpy_msg(ImageMsg),
+                topic=f"/paf/{self.role_name}/Zoom/segmented_image",
+                qos_profile=1,
+            )
+        if self.back:
+            self.publisher_back = self.new_publisher(
+                msg_type=numpy_msg(ImageMsg),
+                topic=f"/paf/{self.role_name}/Back/segmented_image",
+                qos_profile=1,
+            )
+        if self.left:
+            self.publisher_left = self.new_publisher(
+                msg_type=numpy_msg(ImageMsg),
+                topic=f"/paf/{self.role_name}/Left/segmented_image",
+                qos_profile=1,
+            )
+        if self.right:
+            self.publisher_right = self.new_publisher(
+                msg_type=numpy_msg(ImageMsg),
+                topic=f"/paf/{self.role_name}/Right/segmented_image",
+                qos_profile=1,
+            )
+
+    def setup_object_distance_publishers(self):
+        """
+        sets up a publisher to publish a list of objects
+        and their distances
+        """
+
+        self.distance_publisher = self.new_publisher(
+            msg_type=Float32MultiArray,
+            topic=f"/paf/{self.role_name}/{self.side}/object_distance",
+            qos_profile=1,
+        )
+
+    def setup_traffic_light_publishers(self):
+        """
+        sets up a publisher for traffic light detection
+        """
+
+        self.traffic_light_publisher = self.new_publisher(
+            msg_type=numpy_msg(ImageMsg),
+            topic=f"/paf/{self.role_name}/{self.side}/segmented_traffic_light",
+            qos_profile=1,
+        )
 
     def handle_camera_image(self, image):
         """
@@ -112,30 +191,93 @@ class VisionNode(CompatibleNode):
         if self.device == "cuda":
             torch.cuda.empty_cache()
 
-        # time_start = time_ns()
-        vision_result = self.predict_ultralytics(
-            image, return_image=self.view_camera, image_size=self.camera_resolution
-        )
-        # time_delta = (time_ns() - time_start) / 1e6
-        # if self.timestart:
-        #     self.timesum += time_delta
-        #     self.timenum += 1
-        #     printTime = self.timesum / self.timenum
-        #     rospy.loginfo(
-        #         f"runtime: {printTime} ms   timesum: {self.timesum} timenum: {self.timenum}"
-        #     )
-        # elif time_delta < 90:
-        #     self.timestart = True
+        if self.framework == "pyTorch":
+            vision_result = self.predict_torch(image)
 
-        if vision_result is None:
-            return
+        if self.framework == "ultralytics":
+            vision_result = self.predict_ultralytics(image)
 
         # publish vision result to rviz
-        img_msg = self.bridge.cv2_to_imgmsg(vision_result, encoding="bgr8")
+        img_msg = self.bridge.cv2_to_imgmsg(vision_result, encoding="rgb8")
         img_msg.header = image.header
-        self.publisher_center.publish(img_msg)
 
-    def predict_ultralytics(self, image, return_image=True, image_size=720):
+        # publish img to corresponding angle topic
+        header_id = rospy.resolve_name(img_msg.header.frame_id)
+        if (
+            "Zoom" in header_id
+            or "Back" in header_id
+            or "Left" in header_id
+            or "Right" in header_id
+        ):
+            side = header_id.split("/")[2]
+            if side == "Zoom":
+                self.publisher_zoom.publish(img_msg)
+            if side == "Back":
+                self.publisher_back.publish(img_msg)
+            if side == "Left":
+                self.publisher_left.publish(img_msg)
+            if side == "Right":
+                self.publisher_right.publish(img_msg)
+
+    def handle_dist_array(self, dist_array):
+        """
+        This function overwrites the current depth image from
+        the lidar distance node with the latest depth image.
+
+        Args:
+            dist_array (image msg): Depth image frim Lidar Distance Node
+        """
+        # callback function for lidar depth image
+        # since frequency is lower than image frequency
+        # the latest lidar image is saved
+        dist_array = self.bridge.imgmsg_to_cv2(
+            img_msg=dist_array, desired_encoding="passthrough"
+        )
+        self.dist_arrays = dist_array
+
+    def predict_torch(self, image):
+        """
+        This function takes in an image from a camera and predicts a
+        PyTorch model on the image. Depending on the the type of prediction
+        a visualization function creates either a segmentation mask or bounding
+        boxes for the image. The resulting image is returned.
+
+        Args:
+            image (image msg): image from a camera subscription
+
+        Returns:
+            image: visualization of prediction for rviz
+        """
+
+        # set model in evaluation mode
+        self.model.eval()
+
+        # preprocess image
+        cv_image = self.bridge.imgmsg_to_cv2(
+            img_msg=image, desired_encoding="passthrough"
+        )
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
+        preprocess = t.Compose(
+            [
+                t.ToTensor(),
+                t.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+        input_image = preprocess(cv_image).unsqueeze(dim=0)
+
+        # get prediction
+        input_image = input_image.to(self.device)
+        prediction = self.model(input_image)
+
+        # apply visualition
+        if self.type == "detection":
+            vision_result = self.apply_bounding_boxes(cv_image, prediction[0])
+        if self.type == "segmentation":
+            vision_result = self.create_mask(cv_image, prediction["out"])
+
+        return vision_result
+
+    def predict_ultralytics(self, image):
         """
         This function takes in an image from a camera, predicts
         an ultralytics model on the image and looks for lidar points
@@ -150,121 +292,176 @@ class VisionNode(CompatibleNode):
         Returns:
             (cv image): visualization output for rvizw
         """
-        scaled_masks = None
+
         # preprocess image
         cv_image = self.bridge.imgmsg_to_cv2(
             img_msg=image, desired_encoding="passthrough"
         )
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
+        image_y, image_x, ch_num = cv_image.shape
 
         # run model prediction
+        output = self.model(cv_image, half=True, verbose=False)
 
-        output = self.model.track(
-            cv_image, half=True, verbose=False, imgsz=image_size  # type: ignore
+        masks = output[0].masks.data
+        num_classes, pred_y, pred_x = masks.shape
+        resized_masks = t.functional.resize(
+            img=masks,
+            size=(image_y, image_x),
+            interpolation=t.InterpolationMode.NEAREST,
         )
-        if not (
-            hasattr(output[0], "masks")
-            and output[0].masks is not None
-            and hasattr(output[0], "boxes")
-            and output[0].boxes is not None
-            and self.dist_array is not None
-            and self.lidar_array is not None
-        ):
-            return None
 
-        carla_classes = np.array(coco_to_carla)[
-            output[0].boxes.cls.to(torch.int).cpu().numpy()  # type: ignore
-        ]
+        resized_masks = torch.where(resized_masks > 0.5, True, False)
 
-        masks = torch.tensor(output[0].masks.data)
-        scaled_masks = scale_masks(
-            masks.unsqueeze(1), cv_image.shape[:2], True
-        ).squeeze(1)
-        valid_points, class_indices = self.process_segmentation_mask(
-            scaled_masks.cpu().numpy(),
-            carla_classes=carla_classes,
-            distance_array=self.dist_array,
-            lidar_array=self.lidar_array,
-        )
-        if valid_points is None or valid_points.size == 0:
-            return None
-        clustered_points, cluster_indices, carla_classes_indices = self.cluster_points(
-            valid_points, class_indices, carla_classes
-        )
-        if clustered_points is None or clustered_points.size == 0:
-            return None
-        try:
-            self.publish_distance_output(clustered_points, carla_classes_indices)
-            clustered_lidar_points_msg = array_to_clustered_points(
-                clustered_points,
-                cluster_indices,
-                object_class_array=carla_classes_indices,
-            )
-            self.pointcloud_publisher.publish(clustered_lidar_points_msg)
-        except Exception as e:
-            rospy.logerr(f"Error in publishing pointcloud: {e}")
-            return None
+        # handle distance of objects
+
+        # set up lists for visualization of distance outputs
+        distance_output = []
+        c_boxes = []
+        c_labels = []
+
+        boxes = output[0].boxes
+        for box in boxes:
+            cls = box.cls.item()  # class index of object
+            pixels = box.xyxy[0]  # upper left and lower right pixel coords
+
+            # only run distance calc when dist_array is available
+            # this if is needed because the lidar starts
+            # publishing with a delay
+            if self.dist_arrays is not None:
+
+                # crop bounding box area out of depth image
+                distances = np.asarray(
+                    self.dist_arrays[
+                        int(pixels[1]) : int(pixels[3]) : 1,
+                        int(pixels[0]) : int(pixels[2]) : 1,
+                        ::,
+                    ]
+                )
+
+                # set all 0 (black) values to np.inf (necessary if
+                # you want to search for minimum)
+                # these are all pixels where there is no
+                # corresponding lidar point in the depth image
+                condition = distances[:, :, 0] != 0
+                non_zero_filter = distances[condition]
+                distances_copy = distances.copy()
+                distances_copy[distances_copy == 0] = np.inf
+
+                # only proceed if there is more than one lidar
+                # point in the bounding box
+                if len(non_zero_filter) > 0:
+
+                    """
+                    !Watch out:
+                    The calculation of min x and min abs y is currently
+                    only for center angle
+                    For back, left and right the values are different in the
+                    coordinate system of the lidar.
+                    (Example: the closedt distance on the back view should the
+                    max x since the back view is on the -x axis)
+                    """
+
+                    # copy actual lidar points
+                    obj_dist_min_x = self.min_x(dist_array=distances_copy)
+                    obj_dist_min_abs_y = self.min_abs_y(dist_array=distances_copy)
+
+                    # absolut distance to object for visualization
+                    abs_distance = np.sqrt(
+                        obj_dist_min_x[0] ** 2
+                        + obj_dist_min_x[1] ** 2
+                        + obj_dist_min_x[2] ** 2
+                    )
+
+                    # append class index, min x and min abs y to output array
+                    distance_output.append(float(cls))
+                    distance_output.append(float(obj_dist_min_x[0]))
+                    distance_output.append(float(obj_dist_min_abs_y[1]))
+
+                else:
+                    # fallback values for bounding box if
+                    # no lidar points where found
+                    obj_dist_min_x = (np.inf, np.inf, np.inf)
+                    obj_dist_min_abs_y = (np.inf, np.inf, np.inf)
+                    abs_distance = np.inf
+
+                # add values for visualization
+                c_boxes.append(torch.tensor(pixels))
+                c_labels.append(
+                    f"Class: {cls},"
+                    f"Meters: {round(abs_distance, 2)},"
+                    f"({round(float(obj_dist_min_x[0]), 2)},"
+                    f"{round(float(obj_dist_min_abs_y[1]), 2)})"
+                )
+
+        # publish list of distances of objects for planning
+        self.distance_publisher.publish(Float32MultiArray(data=distance_output))
+
+        # transform image
+        transposed_image = np.transpose(cv_image, (2, 0, 1))
+        image_np_with_detections = torch.tensor(transposed_image, dtype=torch.uint8)
+
         # proceed with traffic light detection
         if 9 in output[0].boxes.cls:
-            asyncio.run(
-                self.process_traffic_lights(output[0], cv_image, deepcopy(image.header))
-            )
+            rospy.logfatal("Es funktioniert")
+            asyncio.run(self.process_traffic_lights(output[0], cv_image, image.header))
 
-        if return_image is False or scaled_masks is None:
-            return None
-
-        transposed_image = np.transpose(cv_image, (2, 0, 1))
-        image_tensor = torch.tensor(transposed_image, dtype=torch.uint8)
-        masks_tensor = torch.tensor(scaled_masks > 0, dtype=torch.bool)
-
-        class_colors = np.array(carla_colors)[carla_classes].tolist()
-        drawn_images = draw_segmentation_masks(
-            image_tensor, masks_tensor, alpha=0.6, colors=class_colors
+        # draw bounding boxes and distance values on image
+        c_boxes = torch.stack(c_boxes)
+        box = draw_bounding_boxes(
+            image_np_with_detections,
+            c_boxes,
+            c_labels,
+            colors="blue",
+            width=3,
+            font_size=12,
         )
+        box = draw_segmentation_masks(box, resized_masks, alpha=0.5)
+        np_box_img = np.transpose(box.detach().numpy(), (1, 2, 0))
+        box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
+        return box_img
 
-        np_image = drawn_images.permute(1, 2, 0).cpu().numpy()
-        return cv2.cvtColor(np_image, cv2.COLOR_BGR2RGB)
+    def min_x(self, dist_array):
+        """
+        Calculate min x (distance forward)
 
-    def process_segmentation_mask(
-        self, segmentation_array, carla_classes, distance_array, lidar_array
-    ):
-        # Only process the segmentation mask if the distance array is not None
-        valid_distances_mask = distance_array > 0
-        car_length = 4.9
-        car_width = 1.86436
-        # Filter out points that are not in the car and not on the road and are not zero
-        car_filter_mask = (
-            # filter out points that are not in the car
-            (lidar_array[..., 0] >= -car_length / 2)
-            & (lidar_array[..., 0] <= car_length / 2)
-            & (lidar_array[..., 1] >= -car_width / 2)
-            & (lidar_array[..., 1] <= car_width / 2)
-        )
-        # Filter out points that are on the road
-        road_filter_mask = lidar_array[..., 2] >= 0.3
-        # Filter out points that are zero
-        zero_filter_mask = (
-            ~(lidar_array[..., 0] == 0.0)
-            & ~(lidar_array[..., 1] == 0.0)
-            & ~(lidar_array[..., 2] == 1.7)
-        )
-        lidar_filter_mask = ~car_filter_mask & road_filter_mask & zero_filter_mask
-        combined_mask = valid_distances_mask & lidar_filter_mask
-        # tiled_mask holds all the valid points
-        valid_points_from_mask = (
-            segmentation_array.astype(bool) & combined_mask[None, ...]
-        )
-        # get the x, y, z values of the valid points
-        valid_indices = np.nonzero(valid_points_from_mask)
-        valid_points = lidar_array[valid_indices[1], valid_indices[2]]
-        return valid_points, valid_indices[0]
+        Args:
+            dist_array (np array): numpy array containing all
+            lidar point in one bounding box
+
+        Returns:
+            np.array: 1x3 numpy array of min x lidar point
+        """
+
+        min_x_sorted_indices = np.argsort(dist_array[:, :, 0], axis=None)
+        x, y = np.unravel_index(min_x_sorted_indices[0], dist_array.shape[:2])
+        return dist_array[x][y].copy()
+
+    def min_abs_y(self, dist_array):
+        """
+        Calculate min abs y (distance sideways)
+
+        Args:
+            dist_array (np array): numpy array containing all
+            lidar point in one bounding box
+
+        Returns:
+            np.array: 1x3 numpy array of min abs y lidar point
+        """
+
+        abs_distance_copy = np.abs(dist_array.copy())
+        min_y_sorted_indices = np.argsort(abs_distance_copy[:, :, 1], axis=None)
+        x, y = np.unravel_index(min_y_sorted_indices[0], abs_distance_copy.shape[:2])
+        return dist_array[x][y].copy()
+
+    # you can add similar functions to support other camera angles here
 
     async def process_traffic_lights(self, prediction, cv_image, image_header):
         indices = (prediction.boxes.cls == 9).nonzero().squeeze().cpu().numpy()
         indices = np.asarray([indices]) if indices.size == 1 else indices
 
-        max_y = 360  # middle of image
-        min_prob = 0.030
+        max_y = 0  # middle of image
+        min_prob = 0.30
 
         for index in indices:
             box = prediction.boxes.cpu().data.numpy()[index]
@@ -288,12 +485,70 @@ class VisionNode(CompatibleNode):
             traffic_light_image.header.frame_id = str(traffic_light_y_distance)
             self.traffic_light_publisher.publish(traffic_light_image)
 
+    def create_mask(self, input_image, model_output):
+        """
+        function to create segmentation mask for pyTorch models
+
+        Args:
+            input_image (np.array): original image
+            model_output (np.array): model output
+
+        Returns:
+            np.array: image with segmentation mask
+        """
+
+        output_predictions = torch.argmax(model_output, dim=0)
+        for i in range(21):
+            output_predictions[i] = output_predictions[i] == i
+
+        output_predictions = output_predictions.to(dtype=torch.bool)
+
+        transposed_image = np.transpose(input_image, (2, 0, 1))
+        tensor_image = torch.tensor(transposed_image)
+        tensor_image = tensor_image.to(dtype=torch.uint8)
+        segmented_image = draw_segmentation_masks(
+            tensor_image, output_predictions, alpha=0.6
+        )
+        cv_segmented = segmented_image.detach().cpu().numpy()
+        cv_segmented = np.transpose(cv_segmented, (1, 2, 0))
+        return cv_segmented
+
+    def apply_bounding_boxes(self, input_image, model_output):
+        """
+        function to draw bounding boxes for pyTorch models
+
+        Args:
+            input_image (np.array): original image
+            model_output (np.array): model output
+
+        Returns:
+            np.array: image with segmentation mask
+        """
+
+        transposed_image = np.transpose(input_image, (2, 0, 1))
+        image_np_with_detections = torch.tensor(transposed_image, dtype=torch.uint8)
+        boxes = model_output["boxes"]
+        labels = [self.weights.meta["categories"][i] for i in model_output["labels"]]
+
+        box = draw_bounding_boxes(
+            image_np_with_detections,
+            boxes,
+            labels,
+            colors="blue",
+            width=3,
+            font_size=24,
+        )
+
+        np_box_img = np.transpose(box.detach().numpy(), (1, 2, 0))
+        box_img = cv2.cvtColor(np_box_img, cv2.COLOR_BGR2RGB)
+        return box_img
+
     def run(self):
         self.spin()
         pass
 
 
 if __name__ == "__main__":
-    roscomp.init("VisionNode")
-    node = VisionNode("VisionNode")
+    roscomp.init("ZoomNode")
+    node = ZoomNode("ZoomNode")
     node.run()

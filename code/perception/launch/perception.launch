@@ -32,24 +32,6 @@
       -->
   </node>
 
-  <!--<node pkg="perception" type="vision_node.py" name="VisionNode" output="screen">-->
-  <node pkg="perception" type="debug_wrapper.py" name="VisionNode" output="screen" args="--debug_node=vision_node.py --debug_port=53000">
-    <param name="role_name" value="$(arg role_name)" />
-    <param name="view_camera" value="False" />
-    <param name="camera_resolution" value="320"/>
-
-      <!--
-        Image-Segmentation:
-      - yolov8x-seg
-      - yolo11n-seg
-      - yolo11s-seg
-      - yolo11m-seg
-      - yolo11l-seg
-      -->
-
-    <param name="model" value="yolo11x-seg" />
-  </node>
-
   <node pkg="perception" type="zoom_node.py" name="ZoomNode" output="screen">
     <param name="role_name" value="$(arg role_name)" />
     <param name="view_camera" value="True" />
@@ -64,12 +46,18 @@
       - yolo11l-seg
       -->
 
-    <param name="model" value="yolo11x-seg" />
+    <param name="model" value="yolo11n-seg" />
   </node>
 
   <node pkg="perception" type="traffic_light_node.py" name="TrafficLightNode" output="screen">
     <param name="role_name" value="$(arg role_name)" />
     <param name="side" value="Center" />
+    <param name="model" value="/workspace/code/perception/src/traffic_light_detection/models/model_acc_92.48_val_91.88.pt" />
+  </node>
+
+  <node pkg="perception" type="zoom_light_node.py" name="ZoomLightNode" output="screen">
+    <param name="role_name" value="$(arg role_name)" />
+    <param name="side" value="Zoom" />
     <param name="model" value="/workspace/code/perception/src/traffic_light_detection/models/model_acc_92.48_val_91.88.pt" />
   </node>
 

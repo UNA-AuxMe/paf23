@@ -18,7 +18,7 @@ import numpy as np
 import rospy
 
 
-class TrafficLightNode(CompatibleNode):
+class ZoomLightNode(CompatibleNode):
     def __init__(self, name, **kwargs):
         super().__init__(name, **kwargs)
         # general setup
@@ -50,12 +50,13 @@ class TrafficLightNode(CompatibleNode):
     def setup_traffic_light_publishers(self):
         self.traffic_light_publisher = self.new_publisher(
             msg_type=TrafficLightState,
-            topic=f"/paf/{self.role_name}/{self.side}/traffic_light_state",
+            topic=f"/paf/{self.role_name}/{self.side}/zoom_traffic_light_state",
             qos_profile=1,
         )
         self.traffic_light_distance_publisher = self.new_publisher(
             msg_type=Int16,
-            topic=f"/paf/{self.role_name}/{self.side}" + "/traffic_light_y_distance",
+            topic=f"/paf/{self.role_name}/{self.side}"
+            + "/zoom_traffic_light_y_distance",
             qos_profile=1,
         )
 
@@ -75,9 +76,9 @@ class TrafficLightNode(CompatibleNode):
 
     def handle_camera_image(self, image):
         self.counter += 1
-        rospy.logerr(f"Erkannte Ampeln: {self.counter}")
+        rospy.logerr(f"Erkannte Ampeln: {self.counter} - ZoomLightNode")
         distance = int(image.header.frame_id)
-        print("something happens in handel_camera_image")
+        print("something happens in handel_camera_image - ZoomLightNode")
         cv2_image = self.bridge.imgmsg_to_cv2(image)
         rgb_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
         result, data = self.classifier(cv2_image)
@@ -96,7 +97,7 @@ class TrafficLightNode(CompatibleNode):
             return  # not a front facing traffic light
 
         state = result if result in [1, 2, 4] else 0
-        print(f"traffic_light_state: {state}")
+        print(f"traffic_light_state: {state} - ZoomLightNode")
         if self.last_state == state:
             # 1: Green, 2: Red, 4: Yellow, 0: Unknown
             msg = TrafficLightState()
@@ -156,6 +157,6 @@ def is_front(image):
 
 
 if __name__ == "__main__":
-    roscomp.init("TrafficLightNode")
-    node = TrafficLightNode("TrafficLightNode")
+    roscomp.init("ZoomLightNode")
+    node = ZoomLightNode("ZoomLightNode")
     node.run()
