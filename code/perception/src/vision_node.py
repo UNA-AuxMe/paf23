@@ -127,21 +127,23 @@ class VisionNode(CompatibleNode):
         Args:
             image (image msg): Image from camera scubscription
         """
+        try:
+            # free up cuda memory
+            if self.device == "cuda":
+                torch.cuda.empty_cache()
+            vision_result = self.predict_ultralytics(
+                image, return_image=self.view_camera, image_size=self.camera_resolution
+            )
 
-        # free up cuda memory
-        if self.device == "cuda":
-            torch.cuda.empty_cache()
-        vision_result = self.predict_ultralytics(
-            image, return_image=self.view_camera, image_size=self.camera_resolution
-        )
+            if vision_result is None:
+                return
 
-        if vision_result is None:
-            return
-
-        # publish vision result to rviz
-        img_msg = self.bridge.cv2_to_imgmsg(vision_result, encoding="bgr8")
-        img_msg.header = image.header
-        self.publisher_center.publish(img_msg)
+            # publish vision result to rviz
+            img_msg = self.bridge.cv2_to_imgmsg(vision_result, encoding="bgr8")
+            img_msg.header = image.header
+            self.publisher_center.publish(img_msg)
+        except Exception as e:
+            rospy.logerr(f"Error in handle_camera_image: {e}")
 
     def handle_dist_array(self, dist_array):
         """
@@ -155,14 +157,17 @@ class VisionNode(CompatibleNode):
         # callback function for lidar depth image
         # since frequency is lower than image frequency
         # the latest lidar image is saved
-        lidar_array = self.bridge.imgmsg_to_cv2(
-            img_msg=dist_array, desired_encoding="passthrough"
-        )
-        lidar_array_copy = np.copy(lidar_array)
-        # add camera height to the z-axis
-        lidar_array_copy[..., 2] += 1.7
-        self.lidar_array = lidar_array_copy
-        self.dist_array = self.calculate_depth_values(lidar_array_copy)
+        try:
+            lidar_array = self.bridge.imgmsg_to_cv2(
+                img_msg=dist_array, desired_encoding="passthrough"
+            )
+            lidar_array_copy = np.copy(lidar_array)
+            # add camera height to the z-axis
+            lidar_array_copy[..., 2] += 1.7
+            self.lidar_array = lidar_array_copy
+            self.dist_array = self.calculate_depth_values(lidar_array_copy)
+        except Exception as e:
+            rospy.logerr(f"Error in handle_dist_array: {e}")
 
     def predict_ultralytics(self, image, return_image=True, image_size=640):
         """
