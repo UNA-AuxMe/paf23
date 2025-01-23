@@ -9,7 +9,10 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion
 from nav_msgs.msg import Path
 from preplanning_trajectory import OpenDriveConverter
 from ros_compatibility.node import CompatibleNode
-from std_msgs.msg import Float32MultiArray, String
+from std_msgs.msg import Float32MultiArray, String, Empty
+
+from typing import Optional
+from rospy import Publisher
 
 RIGHT = 1
 LEFT = 2
@@ -34,7 +37,7 @@ class PrePlanner(CompatibleNode):
     def __init__(self):
         super(PrePlanner, self).__init__("DevGlobalRoute")
 
-        self.path_backup = Path()
+        self.path_backup: Optional[Path] = None
 
         self.odc = None
         self.global_route_backup = None
@@ -68,17 +71,25 @@ class PrePlanner(CompatibleNode):
             qos_profile=1,
         )
 
-        self.path_pub = self.new_publisher(
+        self.path_pub: Publisher = self.new_publisher(
             msg_type=Path,
             topic="/paf/" + self.role_name + "/trajectory_global",
             qos_profile=1,
         )
 
-        self.speed_limit_pub = self.new_publisher(
+        self.speed_limit_pub: Publisher = self.new_publisher(
             msg_type=Float32MultiArray,
             topic=f"/paf/{self.role_name}/speed_limits_OpenDrive",
             qos_profile=1,
         )
+
+        # While the global trajectory gets published regularly we need to
+        # trigger that the route was updated in motion planner.
+        # Regulary updates of route are important for late joining motion planners
+        self.route_update_pub: Publisher = self.new_publisher(
+            msg_type=Empty, topic=f"/paf/{self.role_name}/route_update", qos_profile=1
+        )
+
         self.logdebug("PrePlanner-Node started")
 
         # uncomment for self.dev_load_world_info() for dev_launch
@@ -202,9 +213,11 @@ class PrePlanner(CompatibleNode):
             pos.pose = pose
             stamped_poses.append(pos)
 
+        self.path_backup = Path()
         self.path_backup.header.stamp = rospy.Time.now()
         self.path_backup.header.frame_id = "global"
         self.path_backup.poses = stamped_poses
+        self.route_update_pub.publish(Empty())
         self.path_pub.publish(self.path_backup)
         self.global_route_backup = None
         self.logerr("PrePlanner: published trajectory")
@@ -276,6 +289,12 @@ class PrePlanner(CompatibleNode):
         Control loop
         :return:
         """
+
+        def loop(timer_event=None):
+            if self.path_backup is not None:
+                self.path_pub.publish(self.path_backup)
+
+        self.new_timer(self.control_loop_rate, loop)
         self.spin()
 
 

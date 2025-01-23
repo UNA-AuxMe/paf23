@@ -1,0 +1,55 @@
+odom_topic: global
+map_frame: global
+
+# Trajectory
+
+dt_ref: 0.3
+dt_hysteresis: 0.1
+
+min_turning_radius: 6        # Min turning radius of the carlike robot (compute value using a model or adjust with rqt_reconfigure manually)
+wheelbase: 4                 # Wheelbase of our car
+cmd_angle_instead_rotvel: True # stage simulator takes the angle instead of the rotvel as input (twist message)
+
+# Optimization
+optimization_activate: True
+optimization_verbose: False
+penalty_epsilon: 0.01
+weight_max_vel_x: 5
+weight_max_vel_theta: 1
+weight_acc_lim_x: 50
+weight_acc_lim_theta: 1
+weight_kinematics_nh: 1000
+weight_kinematics_forward_drive: 50
+weight_kinematics_turning_radius: 1
+weight_optimaltime: 1
+weight_obstacle: 10
+
+# Homotopy Class Planner
+enable_homotopy_class_planning: True
+enable_multithreading: True
+simple_exploration: False
+max_number_classes: 4
+roadmap_graph_no_samples: 15
+roadmap_graph_area_width: 5
+h_signature_prescaler: 0.5
+h_signature_threshold: 0.1
+obstacle_keypoint_offset: 0.1
+obstacle_heading_threshold: 0.45
+
+max_vel_x: 5
+max_vel_x_backwards: 0.1
+
+xy_goal_tolerance:  0.2
+yaw_goal_tolerance: 0.1
+free_goal_vel: True
+
+
+ # Obstacles
+min_obstacle_dist: 1
+
+
+# ********************************************************************
+
+footprint_model:
+    type: "polygon"
+    vertices: [ [2.75, -0.2], [2.5, -0.2], [2.5, -0.7], [-2.75, -0.7], [-2.75, 0.7], [2.5, 0.7], [2.5, 0.2], [2.75, 0.2] ] # for type "polygon" but car-like

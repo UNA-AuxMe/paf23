@@ -17,6 +17,8 @@ It containes parameters and utility functions to reduce code in the ros nodes.
 TARGET_DISTANCE_TO_STOP = 5.0
 # Number of waypoints to be used for the overtaking maneuver
 NUM_WAYPOINTS = 7
+NUM_WAYPOINTS_OVERTAKE = NUM_WAYPOINTS
+NUM_WAYPOINTS_OVERTAKE_UNSTUCK = NUM_WAYPOINTS_OVERTAKE + 2
 # Factor for linear interpolation of target speed values for the ACC
 LERP_FACTOR = 0.5
 # Earth radius in meters for location_to_GPS

@@ -12,6 +12,7 @@ from acting.msg import Debug
 import numpy as np
 
 from acting.helper_functions import vector_angle, points_to_vector
+from typing import Tuple
 
 # Tuneable Values for PurePursuit-Algorithm
 K_LAD = 0.85  # optimal in dev-launch
@@ -63,6 +64,10 @@ class PurePursuitController(CompatibleNode):
 
         self.debug_msg_pub: Publisher = self.new_publisher(
             Debug, f"/paf/{self.role_name}/pure_p_debug", qos_profile=1
+        )
+
+        self.debu_traj_pub: Publisher = self.new_publisher(
+            msg_type=Path, topic=f"/paf/{self.role_name}/pure_debug_path", qos_profile=1
         )
 
         self.__position: tuple[float, float] = None  # x, y
@@ -130,8 +135,8 @@ class PurePursuitController(CompatibleNode):
             K_LAD * self.__velocity, MIN_LA_DISTANCE, MAX_LA_DISTANCE
         )
         # Get the target position on the trajectory in look_ahead distance
-        self.__tp_idx = self.__get_target_point_index(look_ahead_dist)
-        target_wp: PoseStamped = self.__path.poses[self.__tp_idx]
+        __tp_idx = self.__get_target_point_index(look_ahead_dist)
+        target_wp: PoseStamped = self.__path.poses[__tp_idx]
         # Get the vector from the current position to the target position
         target_v_x, target_v_y = points_to_vector(
             (self.__position[0], self.__position[1]),
@@ -169,15 +174,49 @@ class PurePursuitController(CompatibleNode):
         min_dist_idx = -1
         # might be more elegant to only look at points
         # _ahead_ of the closest point on the trajectory
-        for i in range(self.__tp_idx, len(self.__path.poses)):
-            pose: PoseStamped = self.__path.poses[i]
+        from copy import deepcopy
+
+        p: Path = deepcopy(self.__path)
+        closest_index = np.argmin(
+            np.array([self.__dist_to(pose.pose.position) for pose in p.poses])
+        )
+        # p.poses = [
+        #    pose
+        #    for pose in p.poses[closest_index:]
+        #    if self.__is_ahead((pose.pose.position.x, pose.pose.position.y))
+        # ]
+        p.poses = p.poses[closest_index:]
+        self.debu_traj_pub.publish(p)
+
+        pose: PoseStamped
+        for i, pose in enumerate(p.poses[closest_index:]):
+            if not self.__is_ahead((pose.pose.position.x, pose.pose.position.y)):
+                continue
             dist = self.__dist_to(pose.pose.position)
             dist2ld = dist - ld
             # can be optimized
             if min_dist > dist2ld > 0:
                 min_dist = dist2ld
                 min_dist_idx = i
-        return min_dist_idx
+        return closest_index + min_dist_idx
+
+    def __is_ahead(self, pos: Tuple[float, float]) -> bool:
+        x, y = pos
+        c_x, c_y = self.__position
+        to_car = np.array([x - c_x, y - c_y])
+        heading = self.__rotate_vector_2d(np.array([1.0, 0.0]), self.__heading)
+
+        return np.dot(to_car, heading) > 1
+
+    def __rotate_vector_2d(self, vector, angle_rad):
+        rotation_matrix = np.array(
+            [
+                [np.cos(angle_rad), -np.sin(angle_rad)],
+                [np.sin(angle_rad), np.cos(angle_rad)],
+            ]
+        )
+
+        return rotation_matrix @ np.array(vector)
 
     def __dist_to(self, pos: Point) -> float:
         """
