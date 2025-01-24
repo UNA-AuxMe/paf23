@@ -185,13 +185,13 @@ class PurePursuitController(CompatibleNode):
         #    for pose in p.poses[closest_index:]
         #    if self.__is_ahead((pose.pose.position.x, pose.pose.position.y))
         # ]
-        p.poses = p.poses[closest_index:]
-        self.debu_traj_pub.publish(p)
+
+        #  self.debu_traj_pub.publish(p.poses[closest_index:])
 
         pose: PoseStamped
         for i, pose in enumerate(p.poses[closest_index:]):
-            if not self.__is_ahead((pose.pose.position.x, pose.pose.position.y)):
-                continue
+            # if not self.__is_ahead((pose.pose.position.x, pose.pose.position.y)):
+            #    continue
             dist = self.__dist_to(pose.pose.position)
             dist2ld = dist - ld
             # can be optimized
