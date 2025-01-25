@@ -13,9 +13,6 @@ dt_hysteresis: 0.1
 #max_global_plan_lookahead_dist: 3.0
 #feasibility_check_no_poses: 5
 
-min_turning_radius: 10        # Min turning radius of the carlike robot (compute value using a model or adjust with rqt_reconfigure manually)
-wheelbase: 5                 # Wheelbase of our car
-cmd_angle_instead_rotvel: True # stage simulator takes the angle instead of the rotvel as input (twist message)
 
 # Optimization
 no_inner_iterations: 30
@@ -27,11 +24,12 @@ weight_max_vel_x: 10
 weight_max_vel_theta: 1
 weight_acc_lim_x: 50
 weight_acc_lim_theta: 1
-weight_kinematics_nh: 1000
+weight_kinematics_nh: 100 # 1000
 weight_kinematics_forward_drive: 50
 weight_kinematics_turning_radius: 1
 weight_optimaltime: 1
-weight_obstacle: 10
+weight_obstacle: 150
+weight_inflation: 10
 # Homotopy Class Planner
 enable_homotopy_class_planning: False # this is very slow
 enable_multithreading: True
@@ -46,6 +44,10 @@ obstacle_heading_threshold: 0.45
 
 max_vel_x: 5
 max_vel_x_backwards: 0.1
+max_vel_theta: 0.1
+acc_lim_x: 0.1
+acc_lim_theta: 5
+
 
 xy_goal_tolerance:  0.2
 yaw_goal_tolerance: 0.1
@@ -53,16 +55,22 @@ free_goal_vel: True
 
 
  # Obstacles
+legacy_obstacle_association: True # important to use all obstacles
 include_dynamic_obstacles: False
 
-min_obstacle_dist: 0.6
-inflation_dist: 0.6
+min_obstacle_dist: 0.8
+inflation_dist: 1.5
 # Recovery 
 shrink_horizon_backup: False
-oszillation_recovery: False
+oscillation_recovery: True
 
 # ********************************************************************
-
+# Shape based on https://www.motortrend.com/cars/
+# lincoln/mkz/2020/specs/?trim=Base+Sedan
 footprint_model:
     type: "polygon"
     vertices: [ [2.5, -0.9], [-2.5, -0.9], [-2.5, 0.9], [2.5, 0.9] ] # for type "polygon" but car-like
+
+min_turning_radius: 12        # Min turning radius of the carlike robot (compute value using a model or adjust with rqt_reconfigure manually)
+wheelbase: 2.85                # Wheelbase of our car
+cmd_angle_instead_rotvel: True # stage simulator takes the angle instead of the rotvel as input (twist message)

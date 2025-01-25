@@ -355,44 +355,60 @@ class MotionPlanning(CompatibleNode):
             return None
         start_time = time.time()
         req = self.__plan_request
-
-        use_self_as_start = True
-        # if self.distance_to_trajectory is not None:
-        #    use_self_as_start = self.distance_to_trajectory < 1.5  # in meters
-        if use_self_as_start:
-            (
-                req.request.start.position.x,
-                req.request.start.position.y,
-                req.request.start.position.z,
-            ) = self.current_pos
-        else:
-            req.request.start = self.original_trajectory.poses[self.closest_idx].pose
-
-        (
-            req.request.start.orientation.x,
-            req.request.start.orientation.y,
-            req.request.start.orientation.z,
-            req.request.start.orientation.w,
-        ) = R.from_euler("z", self.current_heading, degrees=False).as_quat()
-        req.request.start_vel.linear.x = 1.0
-        # TODO: Fixed overtake Waypoint number... improve this
-        """The distance to the object ahead should maybe also be taken into account.
-            The original code however used it as an index which is totally incorrect.
-        """
         goal_index = (
             self.closest_idx + NUM_WAYPOINTS_OVERTAKE_UNSTUCK + 10  # NONONO
             if unstuck
             else self.closest_idx + NUM_WAYPOINTS_OVERTAKE + 10  # NONON
         )
+
+        use_self_as_start = True
+        # if self.distance_to_trajectory is not None:
+        #    use_self_as_start = self.distance_to_trajectory < 1.5  # in meters
+        # if use_self_as_start:
+        #    (
+        #        req.request.start.position.x,
+        #        req.request.start.position.y,
+        #        req.request.start.position.z,
+        #    ) = self.current_pos
+        # else:
+        #    req.request.start = self.original_trajectory.poses[self.closest_idx].pose
+
+        # self.__set_orientation_from_heading(
+        #    req.request.start.orientation, self.current_heading
+        # )
+
+        # req.request.start_vel.linear.x = self.current_speed
+
+        """Trying to look behind"""
+        current: PoseStamped = PoseStamped()
+        self.__set_orientation_from_heading(
+            current.pose.orientation, self.current_heading
+        )
+        (current.pose.position.x, current.pose.position.y, current.pose.position.z) = (
+            self.current_pos
+        )
+        req.request.waypoints = Path()
+        req.request.waypoints.poses.append(current)
+
+        behind_idx = max(1, self.closest_idx - 15)
+        req.request.start = self.original_trajectory.poses[behind_idx].pose
+        self.__set_orientation_from_poses(
+            req.request.start.orientation,
+            self.original_trajectory.poses[behind_idx],
+            self.original_trajectory.poses[behind_idx - 1],
+        )
+
+        # TODO: Fixed overtake Waypoint number... improve this
+        """The distance to the object ahead should maybe also be taken into account.
+            The original code however used it as an index which is totally incorrect.
+        """
+
         req.request.goal = self.original_trajectory.poses[goal_index].pose
-        a = self.original_trajectory.poses[goal_index].pose.position
-        b = self.original_trajectory.poses[goal_index - 1].pose.position
-        (
-            req.request.goal.orientation.x,
-            req.request.goal.orientation.y,
-            req.request.goal.orientation.z,
-            req.request.goal.orientation.w,
-        ) = R.from_euler("z", np.arctan2(a.y - b.y, a.x - b.x), degrees=False).as_quat()
+        self.__set_orientation_from_poses(
+            req.request.goal.orientation,
+            self.original_trajectory.poses[goal_index],
+            self.original_trajectory.poses[goal_index - 1],
+        )
 
         obstacle_array = ObstacleArrayMsg()
         for map_entity in self.map.entities_without_hero():
@@ -427,11 +443,32 @@ class MotionPlanning(CompatibleNode):
         beg_idx = self.closest_idx - 2 if self.closest_idx > 2 else 0
         print(beg_idx)
         self.trajectory.poses = (
-            self.original_trajectory.poses[:beg_idx]  # safety
+            # self.original_trajectory.poses[:beg_idx]  # safety
+            self.original_trajectory.poses[:behind_idx]
             + response.respond.path.poses
             + self.original_trajectory.poses[goal_index:]
         )
         print(time.time() - start_time, "len", len(response.respond.path.poses))
+
+    def __set_orientation_from_heading(self, orientation, heading: float):
+        (
+            orientation.x,
+            orientation.y,
+            orientation.z,
+            orientation.w,
+        ) = R.from_euler("z", heading, degrees=False).as_quat()
+
+    def __set_orientation_from_poses(
+        self, orientation, pose_a: PoseStamped, pose_b: PoseStamped
+    ):
+        a = pose_a.pose.position
+        b = pose_b.pose.position
+        (
+            orientation.x,
+            orientation.y,
+            orientation.z,
+            orientation.w,
+        ) = R.from_euler("z", np.arctan2(a.y - b.y, a.x - b.x), degrees=False).as_quat()
 
     def __car_to_world(self, translation: NDArray) -> NDArray:
         """Input a vector of x and y in car coordinates and transform to world coordinates.
