@@ -11,12 +11,12 @@
               <param name="control_loop_rate" value="$(arg control_loop_rate)" />
        </node>
 
-       <!--
+
        <include file="$(find planning)/launch/motion_planning.launch">
               <arg name="control_loop_rate" value="$(arg control_loop_rate)" />
               <arg name="role_name" value="$(arg role_name)" />
        </include>
-       -->
+       
 
        <!-- <node pkg="planning" type="dev_global_route.py" name="DevGlobalRoute" output="screen">
            <param name="from_txt" value="True" />

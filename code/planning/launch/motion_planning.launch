@@ -18,4 +18,8 @@
     </node>
     <node pkg="tf" type="static_transform_publisher" name="teb_map"
         args="0.0 0.0 -703.0 0 0 0 1 hero teb_map 100" />
+
+    <node pkg="rviz" type="rviz" name="rviz_teb"
+        args="-d $(find teb_planner_pa)/cfg/rviz_teb_planner_node.rviz" />
+
 </launch>

@@ -25,16 +25,13 @@ weight_max_vel_theta: 1
 weight_acc_lim_x: 50
 weight_acc_lim_theta: 1
 weight_kinematics_nh: 100 # 1000
-weight_kinematics_forward_drive: 50
 weight_kinematics_turning_radius: 1
 weight_optimaltime: 1
-weight_obstacle: 150
-weight_inflation: 10
+weight_obstacle: 200 
+weight_adapt_factor: 50 # very import tant
+weight_inflation: 0.0
 # Homotopy Class Planner
 enable_homotopy_class_planning: False # this is very slow
-enable_multithreading: True
-simple_exploration: False
-max_number_classes: 4
 roadmap_graph_no_samples: 15
 roadmap_graph_area_width: 5
 h_signature_prescaler: 0.5
@@ -70,7 +67,7 @@ oscillation_recovery: True
 footprint_model:
     type: "polygon"
     vertices: [ [2.5, -0.9], [-2.5, -0.9], [-2.5, 0.9], [2.5, 0.9] ] # for type "polygon" but car-like
-
+weight_viapoint: 30.0 # the current position is the viapoint. It is important that trajectory passes through that.
 min_turning_radius: 12        # Min turning radius of the carlike robot (compute value using a model or adjust with rqt_reconfigure manually)
 wheelbase: 2.85                # Wheelbase of our car
 cmd_angle_instead_rotvel: True # stage simulator takes the angle instead of the rotvel as input (twist message)

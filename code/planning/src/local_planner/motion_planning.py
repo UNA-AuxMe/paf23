@@ -397,7 +397,6 @@ class MotionPlanning(CompatibleNode):
             self.original_trajectory.poses[behind_idx],
             self.original_trajectory.poses[behind_idx - 1],
         )
-
         # TODO: Fixed overtake Waypoint number... improve this
         """The distance to the object ahead should maybe also be taken into account.
             The original code however used it as an index which is totally incorrect.
@@ -412,21 +411,22 @@ class MotionPlanning(CompatibleNode):
 
         obstacle_array = ObstacleArrayMsg()
         for map_entity in self.map.entities_without_hero():
-            ob = ObstacleMsg()
             x = map_entity.transform.translation().x()
             y = map_entity.transform.translation().y()
             xx, yy = map_entity.to_shapely().poly.exterior.coords.xy
             coordinates = tuple(zip(xx.tolist(), yy.tolist()))
+
+            ob = ObstacleMsg()
+            ob.orientation.w = 1
             for c in coordinates:
                 x_car, y_car = c
                 x, y = self.__car_to_world(np.array([x_car, y_car]))
 
                 ob.polygon.points.append(Point32(x=x, y=y))
                 # ob.radius = 1.0
-                # if len(ob.polygon.points) == 2:
+                # if len(ob.polygon.points) == 1:
                 #    break
 
-            ob.orientation.w = 1
             obstacle_array.obstacles.append(ob)
         req.request.obstacles = obstacle_array
 

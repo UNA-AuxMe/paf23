@@ -16,7 +16,7 @@ from typing import Tuple
 
 # Tuneable Values for PurePursuit-Algorithm
 K_LAD = 0.85  # optimal in dev-launch
-MIN_LA_DISTANCE = 2
+MIN_LA_DISTANCE = 3
 MAX_LA_DISTANCE = 25
 # Tuneable Factor before Publishing
 # "-1" because it is inverted to the steering carla expects
@@ -169,35 +169,23 @@ class PurePursuitController(CompatibleNode):
         if len(self.__path.poses) < 2:
             return -1
 
-        # initialize min dist and idx very high and -1
-        min_dist = 10e1000
-        min_dist_idx = -1
-        # might be more elegant to only look at points
-        # _ahead_ of the closest point on the trajectory
+        closest_index = np.argmin(
+            np.array([self.__dist_to(pose.pose.position) for pose in self.__path.poses])
+        )
+
+        ld_distances = np.array(
+            [
+                self.__dist_to(pose.pose.position) - ld
+                for pose in self.__path.poses[closest_index:]
+            ]
+        )
+        min_dist_idx = np.argmin(np.abs(ld_distances))
         from copy import deepcopy
 
-        p: Path = deepcopy(self.__path)
-        closest_index = np.argmin(
-            np.array([self.__dist_to(pose.pose.position) for pose in p.poses])
-        )
-        # p.poses = [
-        #    pose
-        #    for pose in p.poses[closest_index:]
-        #    if self.__is_ahead((pose.pose.position.x, pose.pose.position.y))
-        # ]
-
-        #  self.debu_traj_pub.publish(p.poses[closest_index:])
-
-        pose: PoseStamped
-        for i, pose in enumerate(p.poses[closest_index:]):
-            # if not self.__is_ahead((pose.pose.position.x, pose.pose.position.y)):
-            #    continue
-            dist = self.__dist_to(pose.pose.position)
-            dist2ld = dist - ld
-            # can be optimized
-            if min_dist > dist2ld > 0:
-                min_dist = dist2ld
-                min_dist_idx = i
+        p = deepcopy(self.__path)
+        p.poses = p.poses[closest_index + min_dist_idx :]
+        self.debu_traj_pub.publish(p)
+        print(min_dist_idx, ld_distances)
         return closest_index + min_dist_idx
 
     def __is_ahead(self, pos: Tuple[float, float]) -> bool:
