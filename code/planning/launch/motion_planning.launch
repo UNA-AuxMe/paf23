@@ -16,4 +16,6 @@
         output="screen">
         <rosparam file="$(find planning)/config/teb_herocar_config.yaml" command="load" />
     </node>
+    <node pkg="tf" type="static_transform_publisher" name="teb_map"
+        args="0.0 0.0 -703.0 0 0 0 1 hero teb_map 100" />
 </launch>

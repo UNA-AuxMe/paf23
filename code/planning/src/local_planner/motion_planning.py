@@ -27,6 +27,7 @@ from utils import (
     spawn_car,
 )
 
+
 sys.path.append(os.path.abspath(sys.path[0] + "/../../planning/src/behavior_agent"))
 from behaviors import behavior_speed as bs  # type: ignore # noqa: E402
 
@@ -36,6 +37,8 @@ from mapping_common.entity import Entity
 from mapping_common.map import Map
 from mapping_common.transform import Transform2D
 from costmap_converter.msg import ObstacleArrayMsg, ObstacleMsg
+from copy import deepcopy
+import time
 
 # from scipy.spatial._kdtree import KDTree
 
@@ -73,9 +76,11 @@ class MotionPlanning(CompatibleNode):
         self.current_pos: Optional[NDArray] = None
         self.current_heading: Optional[float] = None
         self.trajectory: Optional[Path] = None
+        self.original_trajectory: Optional[Path] = None
         self.overtaking = False
         self.current_wp_idx: Optional[int] = None
         self.closest_idx: Optional[int] = None
+        self.distance_to_trajectory: Optional[float] = None
         self.enhanced_path = None
         self.current_speed = None
         self.speed_limit = None
@@ -216,11 +221,13 @@ class MotionPlanning(CompatibleNode):
         self.plan_service: ServiceProxy = self.new_client(
             srv_type=Plan, srv_name="/teb_planner_node_pa/plan"
         )
+        self.__plan_request: PlanRequest = PlanRequest()
 
         # Debug
         self.debug_traj_pub: Publisher = self.new_publisher(
             msg_type=Path, topic="debug/traj", qos_profile=1
         )
+        self.old_plan: Optional[Path] = None
 
         self.logdebug("MotionPlanning started")
         self.counter = 0
@@ -296,6 +303,37 @@ class MotionPlanning(CompatibleNode):
         self.overtake_success_pub.publish(self.__overtake_status)
         return
 
+    def __direction_vector_to_quaternion(
+        self, direction, reference=np.array([0, 0, 1])
+    ):
+        # Normalize the input direction vector
+        direction = np.array(direction)
+        direction_norm = np.linalg.norm(direction)
+        if direction_norm == 0:
+            raise ValueError("Direction vector cannot be zero.")
+        direction = direction / direction_norm
+
+        # Check if the direction is the same as the reference
+        if np.allclose(direction, reference):
+            return np.array([0, 0, 0, 1])  # No rotation needed, identity quaternion
+
+        # Compute rotation axis and angle
+        rotation_axis = np.cross(reference, direction)
+        rotation_axis_norm = np.linalg.norm(rotation_axis)
+        if rotation_axis_norm == 0:  # Vectors are collinear
+            return (
+                np.array([0, 0, 0, 1])
+                if np.dot(reference, direction) > 0
+                else np.array([1, 0, 0, 0])
+            )
+
+        rotation_axis = rotation_axis / rotation_axis_norm
+        angle = np.arccos(np.clip(np.dot(reference, direction), -1.0, 1.0))
+
+        # Create the quaternion
+        quaternion = R.from_rotvec(rotation_axis * angle).as_quat()  # x, y, z, w format
+        return quaternion
+
     def _generate_overtake_trajectory(
         self, distance_obj: Optional[float], unstuck: bool = False
     ) -> Optional[Path]:
@@ -315,27 +353,28 @@ class MotionPlanning(CompatibleNode):
             or self.current_heading is None
         ):
             return None
-
-        req = PlanRequest()
+        start_time = time.time()
+        req = self.__plan_request
 
         use_self_as_start = True
+        # if self.distance_to_trajectory is not None:
+        #    use_self_as_start = self.distance_to_trajectory < 1.5  # in meters
         if use_self_as_start:
-            req.request.start.position.x, req.request.start.position.y = (
-                self.current_pos[:2]
-            )
-
+            (
+                req.request.start.position.x,
+                req.request.start.position.y,
+                req.request.start.position.z,
+            ) = self.current_pos
         else:
-            req.request.start = self.trajectory.poses[self.closest_idx].pose
+            req.request.start = self.original_trajectory.poses[self.closest_idx].pose
 
-        req.request.start.position.z = 0.0
-        rotation = R.from_euler("z", self.current_heading, degrees=False).as_quat()
         (
             req.request.start.orientation.x,
             req.request.start.orientation.y,
             req.request.start.orientation.z,
             req.request.start.orientation.w,
-        ) = rotation
-
+        ) = R.from_euler("z", self.current_heading, degrees=False).as_quat()
+        req.request.start_vel.linear.x = 1.0
         # TODO: Fixed overtake Waypoint number... improve this
         """The distance to the object ahead should maybe also be taken into account.
             The original code however used it as an index which is totally incorrect.
@@ -345,47 +384,54 @@ class MotionPlanning(CompatibleNode):
             if unstuck
             else self.closest_idx + NUM_WAYPOINTS_OVERTAKE + 10  # NONON
         )
-        req.request.goal = self.trajectory.poses[goal_index].pose
-        req.request.goal.position.z = 0.0
-        req.request.goal.orientation = req.request.start.orientation
+        req.request.goal = self.original_trajectory.poses[goal_index].pose
+        a = self.original_trajectory.poses[goal_index].pose.position
+        b = self.original_trajectory.poses[goal_index - 1].pose.position
+        (
+            req.request.goal.orientation.x,
+            req.request.goal.orientation.y,
+            req.request.goal.orientation.z,
+            req.request.goal.orientation.w,
+        ) = R.from_euler("z", np.arctan2(a.y - b.y, a.x - b.x), degrees=False).as_quat()
 
         obstacle_array = ObstacleArrayMsg()
-        self.loginfo(len(self.map.entities_without_hero()))
         for map_entity in self.map.entities_without_hero():
             ob = ObstacleMsg()
             x = map_entity.transform.translation().x()
             y = map_entity.transform.translation().y()
-            translation_x, translation_y = self.__car_to_world(np.array([x, y]))
             xx, yy = map_entity.to_shapely().poly.exterior.coords.xy
             coordinates = tuple(zip(xx.tolist(), yy.tolist()))
             for c in coordinates:
                 x_car, y_car = c
                 x, y = self.__car_to_world(np.array([x_car, y_car]))
-                rospy.logerr(f"{x}, {y}, {x_car}, {y_car}, {self.current_pos}")
+
                 ob.polygon.points.append(Point32(x=x, y=y))
+                # ob.radius = 1.0
+                # if len(ob.polygon.points) == 2:
+                #    break
+
             ob.orientation.w = 1
-            self.loginfo(ob)
             obstacle_array.obstacles.append(ob)
         req.request.obstacles = obstacle_array
 
-        response: PlanResponse = self.plan_service.call(req)
+        print(time.time() - start_time, "Now calling service")
+        response: PlanResponse = self.plan_service.call(self.__plan_request)
 
+        print(
+            time.time() - start_time, len(obstacle_array.obstacles), "AfterService call"
+        )
         response.respond.path.header.frame_id = "global"
         for i in range(len(response.respond.path.poses)):
             response.respond.path.poses[i].header.frame_id = "global"
 
-        # self.debug_traj_pub.publish(response.respond.path)
-
-        # goal_index and self.current_wp_idx
-        from copy import deepcopy
-
-        traj: Path = deepcopy(self.trajectory)
-        traj.poses = (
-            traj.poses[: self.closest_idx]
+        beg_idx = self.closest_idx - 2 if self.closest_idx > 2 else 0
+        print(beg_idx)
+        self.trajectory.poses = (
+            self.original_trajectory.poses[:beg_idx]  # safety
             + response.respond.path.poses
-            + traj.poses[goal_index:]
+            + self.original_trajectory.poses[goal_index:]
         )
-        return traj
+        print(time.time() - start_time, "len", len(response.respond.path.poses))
 
     def __car_to_world(self, translation: NDArray) -> NDArray:
         """Input a vector of x and y in car coordinates and transform to world coordinates.
@@ -429,8 +475,8 @@ class MotionPlanning(CompatibleNode):
         Returns:
             None: The method updates the self.trajectory attribute with the new path.
         """
-        new_traj = self._generate_overtake_trajectory(distance)
-        self.trajectory = new_traj if new_traj is not None else self.trajectory
+        self._generate_overtake_trajectory(distance)
+
         return
         currentwp = self.current_wp_idx
         normal_x_offset = 2
@@ -497,8 +543,8 @@ class MotionPlanning(CompatibleNode):
         """
         if self.trajectory is None:
             self.loginfo("Trajectory received")
-
             self.trajectory = data
+            self.original_trajectory = deepcopy(data)
             self.__corners = self.__calc_corner_points()
 
     def __route_update_callback(self, msg: Empty):
@@ -517,7 +563,7 @@ class MotionPlanning(CompatibleNode):
             list: A list of lists, where each sublist contains 2D points that form a
                 corner.
         """
-        coords = self.convert_pose_to_array(np.array(self.trajectory.poses))
+        coords = self.convert_pose_to_array(np.array(self.original_trajectory.poses))
 
         # TODO: refactor by using numpy functions
         x_values = np.array([point[0] for point in coords])
@@ -728,7 +774,7 @@ class MotionPlanning(CompatibleNode):
         elif behavior == bs.us_stop.name:
             speed = bs.us_stop.speed
         elif behavior == bs.us_overtake.name:
-            pose_list = self.trajectory.poses
+            pose_list = self.original_trajectory.poses
             if self.unstuck_distance is None:
                 self.logfatal("Unstuck distance not set")
                 return speed
@@ -870,17 +916,15 @@ class MotionPlanning(CompatibleNode):
             return 0.0
 
     def __calculate_closest_trajectory_idx(self):
-        if self.current_pos is not None and self.trajectory is not None:
-            self.closest_idx = int(
-                np.argmin(
-                    np.array(
-                        [
-                            self.__dist_to(pose.pose.position)
-                            for pose in self.trajectory.poses
-                        ]
-                    )
-                )
+        if self.current_pos is not None and self.original_trajectory is not None:
+            distances = np.array(
+                [
+                    self.__dist_to(pose.pose.position)
+                    for pose in self.original_trajectory.poses
+                ]
             )
+            self.closest_idx = int(np.argmin(distances))
+            self.distance_to_trajectory = distances[self.closest_idx]
 
     def __dist_to(self, pos: Point) -> float:
         """
@@ -910,6 +954,9 @@ class MotionPlanning(CompatibleNode):
                 and self.__corners is not None
             ):
                 self.trajectory.header.stamp = rospy.Time.now()
+                self._generate_overtake_trajectory(
+                    None
+                )  # This is a decision we need to make
                 self.traj_pub.publish(self.trajectory)
                 self.update_target_speed(self.__acc_speed, self.__curr_behavior)
             else:

@@ -1,3 +1,6 @@
+#https://mowito-navstack.readthedocs.io/en/latest/step_5c.html
+
+
 odom_topic: global
 map_frame: global
 
@@ -6,15 +9,21 @@ map_frame: global
 dt_ref: 0.3
 dt_hysteresis: 0.1
 
-min_turning_radius: 6        # Min turning radius of the carlike robot (compute value using a model or adjust with rqt_reconfigure manually)
-wheelbase: 4                 # Wheelbase of our car
+#global_plan_overwrite_orientation: True
+#max_global_plan_lookahead_dist: 3.0
+#feasibility_check_no_poses: 5
+
+min_turning_radius: 10        # Min turning radius of the carlike robot (compute value using a model or adjust with rqt_reconfigure manually)
+wheelbase: 5                 # Wheelbase of our car
 cmd_angle_instead_rotvel: True # stage simulator takes the angle instead of the rotvel as input (twist message)
 
 # Optimization
+no_inner_iterations: 30
+no_outer_iterations: 3
 optimization_activate: True
 optimization_verbose: False
 penalty_epsilon: 0.01
-weight_max_vel_x: 5
+weight_max_vel_x: 10
 weight_max_vel_theta: 1
 weight_acc_lim_x: 50
 weight_acc_lim_theta: 1
@@ -23,9 +32,8 @@ weight_kinematics_forward_drive: 50
 weight_kinematics_turning_radius: 1
 weight_optimaltime: 1
 weight_obstacle: 10
-
 # Homotopy Class Planner
-enable_homotopy_class_planning: True
+enable_homotopy_class_planning: False # this is very slow
 enable_multithreading: True
 simple_exploration: False
 max_number_classes: 4
@@ -45,11 +53,16 @@ free_goal_vel: True
 
 
  # Obstacles
-min_obstacle_dist: 1
+include_dynamic_obstacles: False
 
+min_obstacle_dist: 0.6
+inflation_dist: 0.6
+# Recovery 
+shrink_horizon_backup: False
+oszillation_recovery: False
 
 # ********************************************************************
 
 footprint_model:
     type: "polygon"
-    vertices: [ [2.75, -0.2], [2.5, -0.2], [2.5, -0.7], [-2.75, -0.7], [-2.75, 0.7], [2.5, 0.7], [2.5, 0.2], [2.75, 0.2] ] # for type "polygon" but car-like
+    vertices: [ [2.5, -0.9], [-2.5, -0.9], [-2.5, 0.9], [2.5, 0.9] ] # for type "polygon" but car-like
