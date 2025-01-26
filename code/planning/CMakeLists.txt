@@ -18,7 +18,10 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   message_generation
-)
+  dynamic_reconfigure
+  )
+  
+
 
 roslaunch_add_file_check(launch)
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -71,6 +74,11 @@ add_service_files(
 #   Action1.action
 #   Action2.action
 # )
+
+generate_dynamic_reconfigure_options(
+config/MotionPlan.cfg
+)
+
 
 ## Generate added messages and services with any dependencies listed here
  generate_messages(

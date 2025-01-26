@@ -12,15 +12,12 @@ from acting.msg import Debug
 import numpy as np
 
 from acting.helper_functions import vector_angle, points_to_vector
-from typing import Tuple
+from typing import Tuple, Optional
 
-# Tuneable Values for PurePursuit-Algorithm
-K_LAD = 0.85  # optimal in dev-launch
-MIN_LA_DISTANCE = 3
-MAX_LA_DISTANCE = 25
-# Tuneable Factor before Publishing
-# "-1" because it is inverted to the steering carla expects
-K_PUB = -0.80  # (-4.75) would be optimal in dev-launch
+from control.cfg import PurePursuitConfig
+from dynamic_reconfigure.server import Server
+
+
 # Constant: wheelbase of car
 L_VEHICLE = 2.85
 
@@ -70,11 +67,26 @@ class PurePursuitController(CompatibleNode):
             msg_type=Path, topic=f"/paf/{self.role_name}/pure_debug_path", qos_profile=1
         )
 
-        self.__position: tuple[float, float] = None  # x, y
-        self.__path: Path = None
-        self.__heading: float = None
-        self.__velocity: float = None
-        self.__tp_idx: int = 0  # target waypoint index
+        self.__position: Optional[tuple[float, float]] = None  # x, y
+        self.__path: Optional[Path] = None
+        self.__heading: Optional[float] = None
+        self.__velocity: Optional[float] = None
+
+        # Tuneable Values for PurePursuit-Algorithm
+        self.K_LAD: float
+        self.MIN_LA_DISTANCE: float
+        self.MAX_LA_DISTANCE: float
+        self.K_PUB: float
+        Server(PurePursuitConfig, self.dynamic_reconfigure_callback)
+
+    def dynamic_reconfigure_callback(self, config: "PurePursuitConfig", level):
+        self.K_LAD = config["k_lad"]
+        self.MIN_LA_DISTANCE = config["min_la_distance"]
+        self.MAX_LA_DISTANCE = config["max_la_distance"]
+        self.K_PUB = -config["k_pub"]  # -0.80  # (-4.75) would be optimal in dev-launch
+        # "-1" because it is inverted to the steering carla expects
+
+        return config
 
     def run(self):
         """
@@ -132,7 +144,7 @@ class PurePursuitController(CompatibleNode):
         """
         # la_dist = MIN_LA_DISTANCE <= K_LAD * velocity <= MAX_LA_DISTANCE
         look_ahead_dist = np.clip(
-            K_LAD * self.__velocity, MIN_LA_DISTANCE, MAX_LA_DISTANCE
+            self.K_LAD * self.__velocity, self.MIN_LA_DISTANCE, self.MAX_LA_DISTANCE
         )
         # Get the target position on the trajectory in look_ahead distance
         __tp_idx = self.__get_target_point_index(look_ahead_dist)
@@ -148,7 +160,7 @@ class PurePursuitController(CompatibleNode):
         alpha = target_vector_heading - self.__heading
         # https://thomasfermi.github.io/Algorithms-for-Automated-Driving/Control/PurePursuit.html
         steering_angle = atan((2 * L_VEHICLE * sin(alpha)) / look_ahead_dist)
-        steering_angle = K_PUB * steering_angle  # Needed for unknown reason
+        steering_angle = self.K_PUB * steering_angle  # Needed for unknown reason
         # for debugging ->
         debug_msg = Debug()
         debug_msg.heading = self.__heading

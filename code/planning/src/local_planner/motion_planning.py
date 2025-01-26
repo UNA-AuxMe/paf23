@@ -45,6 +45,9 @@ import time
 from typing import Optional
 from numpy.typing import NDArray
 
+from dynamic_reconfigure.server import Server
+from planning.cfg import MotionPlanConfig
+
 
 UNSTUCK_OVERTAKE_FLAG_CLEAR_DISTANCE = 7.0
 
@@ -232,6 +235,17 @@ class MotionPlanning(CompatibleNode):
         self.logdebug("MotionPlanning started")
         self.counter = 0
 
+        reconfigure_server = Server(MotionPlanConfig, self.dynamic_reconfigure_callback)
+        self.LOOKAHEAD_IDX_COUNT: int
+        self.LOOKBEHIND_IDX_COUNT: int
+        self.SELF_AS_START: bool
+
+    def dynamic_reconfigure_callback(self, config: MotionPlanConfig, level):
+        self.LOOKAHEAD_IDX_COUNT = config["lookahead_idx_count"]
+        self.LOOKBEHIND_IDX_COUNT = config["lookbehind_idx_count"]
+        self.SELF_AS_START = config["self_as_start"]
+        return config
+
     def __set_unstuck_distance(self, data: Float32):
         """Set unstuck distance
 
@@ -356,28 +370,9 @@ class MotionPlanning(CompatibleNode):
         start_time = time.time()
         req = self.__plan_request
         goal_index = (
-            self.closest_idx + NUM_WAYPOINTS_OVERTAKE_UNSTUCK + 10  # NONONO
-            if unstuck
-            else self.closest_idx + NUM_WAYPOINTS_OVERTAKE + 10  # NONON
-        )
-
-        use_self_as_start = True
-        # if self.distance_to_trajectory is not None:
-        #    use_self_as_start = self.distance_to_trajectory < 1.5  # in meters
-        # if use_self_as_start:
-        #    (
-        #        req.request.start.position.x,
-        #        req.request.start.position.y,
-        #        req.request.start.position.z,
-        #    ) = self.current_pos
-        # else:
-        #    req.request.start = self.original_trajectory.poses[self.closest_idx].pose
-
-        # self.__set_orientation_from_heading(
-        #    req.request.start.orientation, self.current_heading
-        # )
-
-        # req.request.start_vel.linear.x = self.current_speed
+            self.closest_idx + self.LOOKAHEAD_IDX_COUNT
+        )  # Different for unstuck??
+        behind_idx = max(1, self.closest_idx - self.LOOKBEHIND_IDX_COUNT)
 
         """Trying to look behind"""
         current: PoseStamped = PoseStamped()
@@ -387,20 +382,36 @@ class MotionPlanning(CompatibleNode):
         (current.pose.position.x, current.pose.position.y, current.pose.position.z) = (
             self.current_pos
         )
-        req.request.waypoints = Path()
-        req.request.waypoints.poses.append(current)
 
-        behind_idx = max(1, self.closest_idx - 15)
-        req.request.start = self.original_trajectory.poses[behind_idx].pose
-        self.__set_orientation_from_poses(
-            req.request.start.orientation,
-            self.original_trajectory.poses[behind_idx],
-            self.original_trajectory.poses[behind_idx - 1],
-        )
-        # TODO: Fixed overtake Waypoint number... improve this
-        """The distance to the object ahead should maybe also be taken into account.
-            The original code however used it as an index which is totally incorrect.
-        """
+        if self.SELF_AS_START:
+            req.request.start = current.pose
+            req.request.waypoints = Path()
+            import random
+
+            # for curves this s very good.
+            for _ in range(3):
+                idx = random.randint(self.closest_idx + 1, goal_index)
+                pose: PoseStamped = deepcopy(self.original_trajectory.poses[idx])
+                self.__set_orientation_from_poses(
+                    pose.pose.orientation,
+                    self.original_trajectory.poses[idx],
+                    self.original_trajectory.poses[idx - 1],
+                )
+                req.request.waypoints.poses.append(pose)
+        else:
+            req.request.waypoints = Path()
+            req.request.waypoints.poses.append(current)
+
+            req.request.start = self.original_trajectory.poses[behind_idx].pose
+            self.__set_orientation_from_poses(
+                req.request.start.orientation,
+                self.original_trajectory.poses[behind_idx],
+                self.original_trajectory.poses[behind_idx - 1],
+            )
+            # TODO: Fixed overtake Waypoint number... improve this
+            """The distance to the object ahead should maybe also be taken into account.
+                The original code however used it as an index which is totally incorrect.
+            """
 
         req.request.goal = self.original_trajectory.poses[goal_index].pose
         self.__set_orientation_from_poses(
@@ -430,7 +441,6 @@ class MotionPlanning(CompatibleNode):
             obstacle_array.obstacles.append(ob)
         req.request.obstacles = obstacle_array
 
-        print(time.time() - start_time, "Now calling service")
         response: PlanResponse = self.plan_service.call(self.__plan_request)
 
         print(
@@ -440,7 +450,10 @@ class MotionPlanning(CompatibleNode):
         for i in range(len(response.respond.path.poses)):
             response.respond.path.poses[i].header.frame_id = "global"
 
-        beg_idx = self.closest_idx - 2 if self.closest_idx > 2 else 0
+        beg_idx = (
+            self.closest_idx - 2 if self.closest_idx > 2 else 0
+        )  # without this merging creates zig zag at boundary
+
         print(beg_idx)
         self.trajectory.poses = (
             # self.original_trajectory.poses[:beg_idx]  # safety
