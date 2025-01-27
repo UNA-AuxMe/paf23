@@ -389,7 +389,7 @@ class MotionPlanning(CompatibleNode):
             import random
 
             # for curves this s very good.
-            for _ in range(3):
+            for _ in range(10):
                 idx = random.randint(self.closest_idx + 1, goal_index)
                 pose: PoseStamped = deepcopy(self.original_trajectory.poses[idx])
                 self.__set_orientation_from_poses(
