@@ -6,11 +6,14 @@ map_frame: global
 
 # Trajectory
 
-# This setup results in nice equidistant points
+# This setup results in nice points
 dt_ref: 0.3
 dt_hysteresis: 0.1
 min_samples: 3
 max_samples: 30
+
+# Homotopy Class Planner
+enable_homotopy_class_planning: False # this is very slow
 
 #global_plan_overwrite_orientation: True
 max_global_plan_lookahead_dist: 0.0
@@ -26,7 +29,7 @@ penalty_epsilon: 0.5
 
 
 # how nice the trajectory is, no kinks etc
-weight_max_vel_x: 1000 # 10
+weight_max_vel_x: 250 # 10
 weight_max_vel_theta: 150
 weight_acc_lim_x: 200 # 10 # 50
 weight_acc_lim_theta: 220
@@ -37,8 +40,7 @@ weight_optimaltime: 1
 
 
 weight_adapt_factor: 50 # very import tant
-# Homotopy Class Planner
-enable_homotopy_class_planning: False # this is very slow
+
 
 # Vehicle info
 max_vel_x: 5
@@ -63,6 +65,7 @@ inflation_dist: 0.65
 weight_obstacle: 180.0 
 weight_inflation: 8.0
 weight_shortest_path: 3.0
+obstacle_cost_exponent: 0.1 # counter intuitive but better at 100 obstacles get ignored completely
 # Recovery 
 shrink_horizon_backup: False
 oscillation_recovery: True
@@ -74,17 +77,17 @@ oscillation_recovery: True
 # width: 1.85
 
 footprint_model:
+    type: "circular"
+    radius: 0.925
     # maybe use two circles
-    type: "two_circles"
-    front_radius: 0.925
-    front_offset: 1.5
-    rear_radius: 0.925
-    rear_offset: 1.5
+    #type: "two_circles"
+    #front_radius: 0.925
+    #front_offset: 1.5
+    #rear_radius: 0.925
+    #rear_offset: 1.5
 
-weight_viapoint: 250.0 # this controls hoow directly we follow the original 
+weight_viapoint: 650.0 # this controls hoow directly we follow the original 
 min_turning_radius: 12        # Min turning radius of the carlike robot (compute value using a model or adjust with rqt_reconfigure manually)
 wheelbase: 2.85                # Wheelbase of our car
 cmd_angle_instead_rotvel: True # stage simulator takes the angle instead of the rotvel as input (twist message)
 
-
-# high via, low max_vel ?
